@@ -10,7 +10,17 @@
   <script src="avatar.js" defer></script>
   <script type="module" src="avatar3d.js"></script>
 </head>
-<body class="site-locked">
+<body class="site-locked intro-active">
+  <section id="welcomeStage" class="welcome-stage" aria-labelledby="welcomeTitle">
+    <div class="welcome-orbit welcome-orbit-one" aria-hidden="true"></div>
+    <div class="welcome-orbit welcome-orbit-two" aria-hidden="true"></div>
+    <div class="welcome-copy">
+      <span class="welcome-kicker">AURA / YOUR INTERACTIVE GUIDE</span>
+      <h1 id="welcomeTitle">A website that <em>talks with you.</em></h1>
+      <p>Meet Nova. Ask a question, choose a path, or let her show you around.</p>
+    </div>
+    <span class="welcome-character-label" aria-hidden="true">NOVA <span>✦</span> READY WHEN YOU ARE</span>
+  </section>
   <header class="site-header" inert>
     <a class="brand" href="#top" aria-label="Aura home" data-guide-spot="aura-logo" data-guide-aliases="aura logo,logo,brand" data-guide-description="This is the Aura logo. Clicking it brings you back to the top of the website.">AURA<span>✦</span></a>
     <span class="prototype-tag">Ask Nova to guide you</span>
@@ -128,6 +138,14 @@
 
   <aside class="control-panel" aria-label="Character controls">
     <div class="control-head"><span class="status-light"></span><div><strong>Meet Nova</strong><small id="avatarStatus" aria-live="polite">Loading character…</small></div></div>
+    <div class="welcome-prompts" aria-label="Start with Nova">
+      <span>Where should we begin?</span>
+      <div class="welcome-prompt-list">
+        <button type="button" data-welcome-prompt="Show me the site">Show me around <span>↗</span></button>
+        <button type="button" data-welcome-prompt="What can you do?">What can you do? <span>✦</span></button>
+        <button type="button" data-welcome-prompt="Show me pricing">Explore pricing <span>→</span></button>
+      </div>
+    </div>
     <p id="siteAccessNotice" class="access-notice" role="status" aria-live="polite">Site controls locked. Ask Nova to “give me the cursor.”</p>
     <div id="chatHistory" class="chat-history" role="log" aria-label="Conversation with Nova" aria-live="polite"><p class="chat-empty">Try “show me the site” or “give me the cursor.”</p></div>
     <form id="speechForm" class="speech-form">

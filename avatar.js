@@ -59,11 +59,19 @@
     x: 0, y: 0, destination: null, onArrival: null,
     gesture: null, speech: null, pendingSpeech: null, blinkUntil: 0, nextBlink: 0,
     lastTick: 0, ready: false, walkStarted: 0, guide: null,
-    pointer: { x: 0, y: 0, active: false }, siteUnlocked: false, teleportVersion: 0,
+    pointer: { x: 0, y: 0, active: false }, siteUnlocked: false, intro: true, teleportVersion: 0,
     currentFrame: null, previousFrame: null, frameChangedAt: 0
   };
 
   function setStatus(message) { status.textContent = message; }
+  function revealSite() {
+    if (!state.intro) return;
+    state.intro = false;
+    document.body.classList.remove('intro-active');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    if (!state.guide && !state.destination) Object.assign(state, dockPosition());
+    placeActor();
+  }
   function setSiteAccess(unlocked) {
     state.siteUnlocked = unlocked;
     document.body.classList.toggle('site-locked', !unlocked);
@@ -269,6 +277,15 @@
     return clampPosition(window.innerWidth - size.width - 34, Math.max(14, panel.top - size.height - 10));
   }
 
+  function introPosition() {
+    const size = actorSize();
+    const panel = document.querySelector('.control-panel').getBoundingClientRect();
+    return {
+      x: Math.max(0, (window.innerWidth - size.width) / 2),
+      y: Math.max(window.innerHeight < 680 ? 90 : 135, panel.top - size.height - 12)
+    };
+  }
+
   function clearGuideVisuals() {
     document.querySelector('.guide-target-active')?.classList.remove('guide-target-active');
     guideHint.hidden = true;
@@ -402,6 +419,7 @@
     if (/\b(give|grant|unlock|enable|release|need|want)\b.*\b(cursor|mouse|site access|website access)\b|\blet me (use|click|control)\b.*\b(site|website|page)\b/i.test(message)) {
       addChatBubble('user', message);
       speechInput.value = '';
+      revealSite();
       setSiteAccess(true);
       const reply = 'You have the cursor now. You can click the highlighted control.';
       addChatBubble('assistant', reply);
@@ -425,10 +443,29 @@
       speak('Okay, I stopped the walkthrough.', true);
       return;
     }
+    if (/\b(enter|open|explore|browse)\b.*\b(site|website|page)\b/i.test(message)) {
+      addChatBubble('user', message);
+      speechInput.value = '';
+      revealSite();
+      const reply = 'Welcome in! Tell me where you want to go, or ask me to show you the site.';
+      addChatBubble('assistant', reply);
+      speak(reply, true);
+      return;
+    }
+    if (state.intro && /\b(what can you do|how can you help|what do you do)\b/i.test(message)) {
+      addChatBubble('user', message);
+      speechInput.value = '';
+      const reply = 'I can answer questions, guide you to features or pricing, point out buttons, and give you the cursor when you want to explore. Try saying show me the site!';
+      addChatBubble('assistant', reply);
+      speak(reply, true);
+      startGesture('point', true);
+      return;
+    }
     const guideRequest = classifyGuideRequest(message);
     if (guideRequest) {
       addChatBubble('user', message);
       speechInput.value = '';
+      revealSite();
       beginGuide(guideRequest);
       return;
     }
@@ -448,6 +485,7 @@
     if (landmark) {
       addChatBubble('user', message);
       speechInput.value = '';
+      revealSite();
       showLandmark(landmark);
       return;
     }
@@ -935,11 +973,22 @@
     event.preventDefault();
     askAI();
   });
+  document.querySelectorAll('[data-welcome-prompt]').forEach((button) => {
+    button.addEventListener('click', () => {
+      speechInput.value = button.dataset.welcomePrompt;
+      askAI();
+    });
+  });
   document.getElementById('retryModels').addEventListener('click', loadAIProviders);
   aiProvider.addEventListener('change', updateProviderNotice);
   modelSelect.addEventListener('change', updateProviderNotice);
   document.getElementById('avatarHit').addEventListener('click', () => {
-    if (!state.guide) speak('Hi! Type “show me the site” in chat and I will guide you.');
+    if (!state.guide) {
+      speak(state.intro
+        ? 'Welcome to Aura! I am Nova, your guide. Ask me to show you the site, or tell me what you are curious about.'
+        : 'Hi! Type “show me the site” in chat and I will guide you.');
+      startGesture('wave', true);
+    }
   });
   voiceSelect.addEventListener('change', () => {
     const browserIndex = Number(voiceSelect.value.split(':')[1]);
@@ -947,16 +996,17 @@
   });
   document.getElementById('skipGuide').addEventListener('click', () => endGuide());
   window.addEventListener('resize', () => {
-    Object.assign(state, state.guide ? clampPosition(state.x, state.y) : dockPosition());
+    Object.assign(state, state.intro ? introPosition() : state.guide ? clampPosition(state.x, state.y) : dockPosition());
     if (state.destination) state.destination = clampPosition(state.destination.x, state.destination.y);
     placeActor();
   });
 
-  const initial = dockPosition();
+  const initial = introPosition();
   state.x = initial.x;
   state.y = initial.y;
   state.nextBlink = performance.now() + 2400;
   setSiteAccess(false);
+  addChatBubble('assistant', 'Welcome to Aura! I’m Nova. I can answer questions or take you on a guided tour. What would you like to explore?');
   placeActor();
   requestAnimationFrame(animate);
   renderVoiceOptions();
@@ -966,10 +1016,11 @@
   window.addEventListener('nova3dready', () => {
     state.ready = true;
     if (!state.guide && !state.destination) {
-      Object.assign(state, dockPosition());
+      Object.assign(state, state.intro ? introPosition() : dockPosition());
       placeActor();
     }
     setStatus('Ready to guide');
+    if (state.intro) startGesture('wave', true);
   });
   if ('speechSynthesis' in window) window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
 
