@@ -1,0 +1,8 @@
+models/Emma.fbx
+*.log
+.env
+node_modules/
+start_*.ps1
+test_*.js
+*_SETUP.md
+DEPLOY_ONLINE.md

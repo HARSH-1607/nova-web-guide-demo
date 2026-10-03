@@ -1,0 +1,12 @@
+{
+  "name": "nova-web-guide-demo",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node run_test_server.js",
+    "test": "node test_local_llm.js && node test_online_ai.js"
+  }
+}

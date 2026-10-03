@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f19">
+  <title>Aura | Animated web guide prototype</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+  <script src="avatar.js" defer></script>
+  <script type="module" src="avatar3d.js"></script>
+</head>
+<body class="site-locked">
+  <header class="site-header" inert>
+    <a class="brand" href="#top" aria-label="Aura home" data-guide-spot="aura-logo" data-guide-aliases="aura logo,logo,brand" data-guide-description="This is the Aura logo. Clicking it brings you back to the top of the website.">AURA<span>✦</span></a>
+    <span class="prototype-tag">Ask Nova to guide you</span>
+  </header>
+
+  <main id="top" inert>
+    <section class="hero page-section" aria-labelledby="hero-title" data-guide-spot="home" data-guide-aliases="home,hero,top of the page" data-guide-description="This is the home section. It introduces Nova and explains how to ask for a guided walkthrough.">
+      <div class="hero-copy">
+        <span class="eyebrow">A guide with personality</span>
+        <h1 id="hero-title">Meet the character who can be <em>anywhere</em> on your site.</h1>
+        <p>Meet Nova, your interactive guide. Ask about the logo, workflow, integrations, features, pricing, trust, or FAQs. Nova will teleport to the right place and explain it. Ask Nova to “give me the cursor” when you want to click.</p>
+      </div>
+      <div class="hero-stage" aria-hidden="true">
+        <div class="stage-ring stage-ring-one"></div>
+        <div class="stage-ring stage-ring-two"></div>
+        <div class="stage-copy">Your companion, wherever you go.</div>
+      </div>
+    </section>
+
+    <section id="features" class="page-section section-block" aria-labelledby="features-title" data-guide-spot="features" data-guide-aliases="features,animations,speech motion" data-guide-description="These cards explain Nova’s speech motion, walking, and gestures. Ask for a feature walkthrough to try the speech button.">
+      <span class="eyebrow">Expressions in motion</span>
+      <h2 id="features-title">Every interaction has a gesture.</h2>
+      <p class="section-intro">Ask Nova to guide you here. The character will point out the next action and wait for you to try it.</p>
+      <div class="feature-grid">
+        <article class="glass-card"><span class="card-number">01</span><h3>Speech motion</h3><p>Expression morphs follow the spoken text with an approximate mouth-open rhythm.</p><button class="text-button" data-walkthrough-target="features">Hear the vowels ↗</button></article>
+        <article class="glass-card"><span class="card-number">02</span><h3>Movement</h3><p>A rigged walk animation carries the guide to a new place on the page.</p></article>
+        <article class="glass-card"><span class="card-number">03</span><h3>Gestures</h3><p>Rigged waving, dancing, and joyful motions respond to each moment.</p></article>
+      </div>
+    </section>
+
+    <section id="workflow" class="page-section section-block" aria-labelledby="workflow-title" data-guide-spot="workflow" data-guide-aliases="workflow,how it works,demo,interactive demo" data-guide-description="This interactive workflow demo shows how a visitor question is understood, routed to the right place, and confirmed with a click.">
+      <span class="eyebrow">Try a guided flow</span>
+      <h2 id="workflow-title">See the journey, one step at a time.</h2>
+      <p class="section-intro">Choose a stage below to preview the visitor experience. This is an interactive demonstration; no live customer data is involved.</p>
+      <div class="workflow-layout">
+        <div class="workflow-steps" role="group" aria-label="Workflow stages">
+          <button class="workflow-step is-active" type="button" data-workflow-step="listen" aria-pressed="true"><span>01</span><strong>Listen</strong><small>A visitor asks in natural language.</small></button>
+          <button class="workflow-step" type="button" data-workflow-step="guide" aria-pressed="false"><span>02</span><strong>Guide</strong><small>Nova finds the relevant destination.</small></button>
+          <button class="workflow-step" type="button" data-workflow-step="confirm" aria-pressed="false"><span>03</span><strong>Confirm</strong><small>The visitor clicks to finish the step.</small></button>
+        </div>
+        <div class="workflow-preview glass-card" aria-live="polite">
+          <span id="workflowBadge" class="preview-badge">STEP 01 · LISTEN</span>
+          <h3 id="workflowPreviewTitle">Start with a question.</h3>
+          <p id="workflowPreviewText">“Where can I learn about pricing?” is enough. Nova can recognize this page’s named destinations without needing an AI response first.</p>
+          <div class="preview-trail"><span>Question</span><span>Destination</span><span>Action</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="integrations" class="page-section section-block" aria-labelledby="integrations-title" data-guide-spot="integrations" data-guide-aliases="integrations,connections,tools,support options,growth options" data-guide-description="The integrations gallery shows example ways a guide could connect to support, sales, or analytics tools. The filters are interactive, but the integrations themselves are only concepts in this prototype.">
+      <span class="eyebrow">Possible connections</span>
+      <h2 id="integrations-title">A guide that fits the journey.</h2>
+      <p class="section-intro">Explore example integrations by category. These cards describe future possibilities, not connected services.</p>
+      <div class="filter-row" role="group" aria-label="Filter integration concepts">
+        <button type="button" class="filter-chip is-active" data-integration-filter="all" aria-pressed="true">All</button>
+        <button type="button" class="filter-chip" data-integration-filter="support" aria-pressed="false">Support</button>
+        <button type="button" class="filter-chip" data-integration-filter="growth" aria-pressed="false">Growth</button>
+      </div>
+      <div class="integration-grid">
+        <article class="glass-card integration-card" data-integration-category="support" data-guide-spot="help-center" data-guide-aliases="help center,knowledge base,support articles" data-guide-description="The Help Center card illustrates a future connection to support articles, so Nova could guide people to relevant answers."><span class="integration-icon">?</span><h3>Help Center</h3><p>Guide visitors toward relevant articles and self-service answers.</p></article>
+        <article class="glass-card integration-card" data-integration-category="support" data-guide-spot="human-handoff" data-guide-aliases="human handoff,live support,agent" data-guide-description="The human handoff concept would let a visitor move from Nova to a person when a question needs extra help."><span class="integration-icon">↗</span><h3>Human handoff</h3><p>Make it clear when a person should take over the conversation.</p></article>
+        <article class="glass-card integration-card" data-integration-category="growth" data-guide-spot="product-tours" data-guide-aliases="product tours,tours,onboarding" data-guide-description="Product Tours are guided sequences like the interactive tour already working on this page."><span class="integration-icon">✦</span><h3>Product tours</h3><p>Lead visitors through a sequence of highlighted actions.</p></article>
+        <article class="glass-card integration-card" data-integration-category="growth" data-guide-spot="insights" data-guide-aliases="insights,analytics,measurement" data-guide-description="The insights concept would help a site owner understand which walkthroughs visitors complete. It is not connected in this prototype."><span class="integration-icon">▥</span><h3>Insights</h3><p>Understand where visitors seek help and where they finish a journey.</p></article>
+      </div>
+    </section>
+
+    <section id="trust" class="page-section section-block trust-block" aria-labelledby="trust-title" data-guide-spot="trust" data-guide-aliases="trust,privacy,security,local ai" data-guide-description="This trust section explains the prototype’s current boundaries: local AI responses, visible guided actions, and optional voice services.">
+      <span class="eyebrow">Built with clear boundaries</span>
+      <h2 id="trust-title">Know what Nova does.</h2>
+      <div class="trust-grid">
+        <article class="glass-card"><h3>Local answers</h3><p>When Ollama is running, chat responses are generated on this computer through the local test server.</p></article>
+        <article class="glass-card"><h3>Visible guidance</h3><p>Nova highlights the next target and waits for your click. It does not silently activate buttons for you.</p></article>
+        <article class="glass-card"><h3>Voice options</h3><p>Browser voices are available locally. ElevenLabs requires an optional API key and may use credits.</p></article>
+      </div>
+    </section>
+
+    <section id="faq" class="page-section section-block faq-block" aria-labelledby="faq-title" data-guide-spot="faq" data-guide-aliases="faq,frequently asked questions,questions" data-guide-description="The FAQ answers common questions about the prototype, including what is live and how to start a tour.">
+      <span class="eyebrow">Quick answers</span>
+      <h2 id="faq-title">Good questions, clear answers.</h2>
+      <div class="faq-list">
+        <details><summary>How do I start a guided tour?</summary><p>Type “show me the site” in Nova’s chat. Nova will visit each step and wait for your click.</p></details>
+        <details><summary>Why can’t I click the site yet?</summary><p>Site controls start locked. Type “give me the cursor” in Nova’s chat to unlock them, or “take the cursor back” to lock them again.</p></details>
+        <details><summary>Can Nova go to a specific place?</summary><p>Yes. Try “go to the Aura logo,” “show me the workflow,” or “take me to integrations.”</p></details>
+        <details><summary>Are the pricing and integrations live?</summary><p>No. They are placeholders and concept cards for this prototype.</p></details>
+        <details><summary>Does chat need a local AI model?</summary><p>Guided destinations work without one. Open-ended chat requires Ollama and a local model.</p></details>
+      </div>
+    </section>
+
+    <section id="pricing" class="page-section section-block" aria-labelledby="pricing-title">
+      <span class="eyebrow">Example destination</span>
+      <h2 id="pricing-title">The guide can lead visitors here.</h2>
+      <p class="section-intro">Nova can teleport here and point out the next action. Pricing details are placeholders while we focus on the character interaction system.</p>
+      <div class="pricing-grid">
+        <article class="glass-card"><h3>Starter</h3><p>For a focused proof of concept.</p><button class="text-button" data-walkthrough-target="pricing">Ask about plans ↗</button></article>
+        <article class="glass-card"><h3>Growth</h3><p>For a wider customer journey.</p></article>
+        <article class="glass-card"><h3>Enterprise</h3><p>For a tailored rollout.</p></article>
+      </div>
+    </section>
+
+    <section id="contact" class="page-section section-block contact-block" aria-labelledby="contact-title">
+      <span class="eyebrow">Another destination</span>
+      <h2 id="contact-title">A little joy goes a long way.</h2>
+      <p>Tap the button and the guide will come over to celebrate with you.</p>
+      <button class="button primary" data-walkthrough-target="contact">Finish the tour</button>
+    </section>
+  </main>
+
+  <div id="avatarActor" class="avatar-actor" aria-label="Animated website guide">
+    <canvas id="avatarCanvas" width="384" height="512" aria-hidden="true"></canvas>
+    <canvas id="avatar3dCanvas" width="384" height="512" aria-hidden="true"></canvas>
+    <button id="avatarHit" class="avatar-hit" type="button" aria-label="Wave to the guide"></button>
+  </div>
+  <div id="guideHint" class="guide-hint" role="status" aria-live="polite" hidden><span id="guideHintText"></span><button id="skipGuide" type="button">Skip</button></div>
+  <svg id="guidePointer" class="guide-pointer" aria-hidden="true" hidden><defs><marker id="guideArrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="none" stroke="currentColor" stroke-width="2"/></marker></defs><line id="guidePointerLine" x1="0" y1="0" x2="0" y2="0" marker-end="url(#guideArrow)"/></svg>
+
+  <aside class="control-panel" aria-label="Character controls">
+    <div class="control-head"><span class="status-light"></span><div><strong>Meet Nova</strong><small id="avatarStatus" aria-live="polite">Loading character…</small></div></div>
+    <p id="siteAccessNotice" class="access-notice" role="status" aria-live="polite">Site controls locked. Ask Nova to “give me the cursor.”</p>
+    <div id="chatHistory" class="chat-history" role="log" aria-label="Conversation with Nova" aria-live="polite"><p class="chat-empty">Try “show me the site” or “give me the cursor.”</p></div>
+    <form id="speechForm" class="speech-form">
+      <label for="speechText">Ask Nova</label>
+      <div class="speech-row"><input id="speechText" maxlength="240" placeholder="Show me the site…" autocomplete="off"><button id="askButton" class="button primary" type="submit" aria-label="Ask Nova">Ask</button></div>
+    </form>
+    <details class="guide-settings"><summary>Model &amp; voice settings</summary>
+      <div class="model-row"><label for="aiProvider">Chat AI</label><select id="aiProvider" aria-label="Chat AI provider"><option value="online">Online AI</option><option value="local">Local Ollama</option></select><button id="retryModels" type="button" aria-label="Retry AI connection" title="Retry connection">↻</button></div>
+      <div id="localModelRow" class="model-row"><label for="modelSelect">Local model</label><select id="modelSelect" aria-label="Local AI model"><option value="">Checking Ollama…</option></select></div>
+      <p id="modelNotice" class="model-notice" aria-live="polite">Checking AI connections…</p>
+      <p class="model-notice">Online questions are sent to OpenAI and may use API credits. The key stays on your local server.</p>
+      <div class="voice-row"><label for="voiceSelect">Voice</label><select id="voiceSelect" aria-label="Speaking voice"><option>Loading voices…</option></select></div>
+      <p id="voiceNotice" class="voice-notice" aria-live="polite">Browser voices work offline. ElevenLabs voices require a local API key and use credits.</p>
+    </details>
+  </aside>
+
+  <footer class="site-footer" inert>Character motion prototype · Choose online AI or private local Ollama chat.</footer>
+</body>
+</html>
