@@ -77,14 +77,19 @@
   function setSiteAccess(unlocked) {
     state.siteUnlocked = unlocked;
     document.body.classList.toggle('site-locked', !unlocked);
-    document.querySelectorAll('.site-header, main, .site-footer').forEach((section) => { section.inert = !unlocked; });
+    document.body.classList.toggle('tour-active', !unlocked && Boolean(state.guide?.tour));
+    document.querySelectorAll('.site-header, main, .site-footer').forEach((section) => {
+      section.inert = !unlocked && !(section.tagName === 'MAIN' && state.guide?.tour);
+    });
     siteAccessNotice.classList.toggle('is-unlocked', unlocked);
     siteAccessNotice.textContent = unlocked
       ? 'Cursor granted. You can click site controls. Ask Nova to “take the cursor back” to lock them.'
-      : 'Site controls locked. Ask Nova to “give me the cursor.”';
+      : state.guide?.tour
+        ? 'Tour mode: click only the glowing target. Finish the tour to unlock the whole site.'
+        : 'Site controls locked. Ask Nova to “give me the cursor.”';
     if (state.guide?.awaiting && state.guide.steps) {
       const step = guideSteps[state.guide.steps[state.guide.index]];
-      guideHintText.textContent = `Step ${state.guide.index + 1}/${state.guide.steps.length}: ${step.text}${unlocked ? '' : ' Ask me to “give me the cursor” before clicking.'}`;
+      guideHintText.textContent = `Step ${state.guide.index + 1}/${state.guide.steps.length}: ${step.text}${unlocked || state.guide.tour ? '' : ' Ask me to “give me the cursor” before clicking.'}`;
     }
   }
   window.addEventListener('pointermove', (event) => {
@@ -320,9 +325,12 @@
   function endGuide(returnToDock = true) {
     if (state.guide) state.guide.cancelled = true;
     state.guide = null;
+    setSiteAccess(state.siteUnlocked);
     skipGuideInline.hidden = true;
     state.teleportVersion += 1;
     actor.classList.remove('teleport-out', 'teleport-in');
+    actor.style.opacity = '';
+    actor.style.transition = '';
     state.destination = null;
     state.onArrival = null;
     state.gesture = null;
@@ -336,7 +344,8 @@
   function beginGuide(request) {
     endGuide(false);
     const steps = request === 'tour' ? ['features', 'pricing', 'contact'] : [request];
-    state.guide = { steps, index: 0, cancelled: false, awaiting: false };
+    state.guide = { steps, index: 0, cancelled: false, awaiting: false, tour: request === 'tour' };
+    setSiteAccess(state.siteUnlocked);
     skipGuideInline.hidden = false;
     showGuideStep();
   }
@@ -351,23 +360,18 @@
     skipGuideInline.hidden = false;
     const description = element.dataset.guideDescription || `Here is ${element.dataset.guideSpot}.`;
     addChatBubble('assistant', description);
-    speak(description, true);
-    element.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: window.innerWidth < 700 && element.matches('.cinematic-scene') ? 'start' : 'center' });
-    window.setTimeout(() => {
+    transitionToTarget(element, focus, () => {
       if (state.guide !== guide || guide.cancelled) return;
-      const position = guidedPosition(focus);
-      teleportTo(position.x, position.y, () => {
-        if (state.guide !== guide || guide.cancelled) return;
-        guide.awaiting = true;
-        focus.classList.add('guide-target-active');
-        guidePointer.hidden = false;
-        guideHintText.textContent = description;
-        guideHint.hidden = false;
-        positionGuideHint();
-        startGesture('point', true);
-        window.setTimeout(() => { if (state.guide === guide) endGuide(); }, Math.max(6000, description.length * 65));
-      });
-    }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 80 : 650);
+      guide.awaiting = true;
+      focus.classList.add('guide-target-active');
+      guidePointer.hidden = false;
+      guideHintText.textContent = description;
+      guideHint.hidden = false;
+      positionGuideHint();
+      speak(description, true);
+      startGesture('point', true);
+      window.setTimeout(() => { if (state.guide === guide) endGuide(); }, Math.max(6000, description.length * 65));
+    }, window.innerWidth < 700 && element.matches('.cinematic-scene') ? 'start' : 'center');
   }
 
   function showGuideStep() {
@@ -380,30 +384,25 @@
     if (!target) { endGuide(); return; }
     window.dispatchEvent(new CustomEvent('nova:guide-target', { detail: { element: target } }));
     guide.targetElement = target;
-    const instruction = state.siteUnlocked ? step.text : `${step.text} Ask me to “give me the cursor” when you are ready to click.`;
+    const instruction = state.siteUnlocked || guide.tour ? step.text : `${step.text} Ask me to “give me the cursor” when you are ready to click.`;
     addChatBubble('assistant', instruction);
-    speak(instruction, true);
-    target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
-    window.setTimeout(() => {
+    transitionToTarget(target, target, () => {
       if (state.guide !== guide || guide.cancelled) return;
-      const position = guidedPosition(target);
-      teleportTo(position.x, position.y, () => {
-        if (state.guide !== guide || guide.cancelled) return;
-        guide.awaiting = true;
-        target.classList.add('guide-target-active');
-        guidePointer.hidden = false;
-        guideHintText.textContent = `Step ${guide.index + 1}/${guide.steps.length}: ${instruction}`;
-        guideHint.hidden = false;
-        positionGuideHint();
-        startGesture('point', true);
-      });
-    }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 80 : 650);
+      guide.awaiting = true;
+      target.classList.add('guide-target-active');
+      guidePointer.hidden = false;
+      guideHintText.textContent = `Step ${guide.index + 1}/${guide.steps.length}: ${instruction}`;
+      guideHint.hidden = false;
+      positionGuideHint();
+      speak(instruction, true);
+      startGesture('point', true);
+    });
   }
 
   function completeGuideStep(target) {
     const guide = state.guide;
     const step = guide?.steps && guideSteps[guide.steps[guide.index]];
-    if (!step || !guide.awaiting || !state.siteUnlocked || target.dataset.walkthroughTarget !== step.target) return false;
+    if (!step || !guide.awaiting || (!state.siteUnlocked && !guide.tour) || target.dataset.walkthroughTarget !== step.target) return false;
     guide.awaiting = false;
     clearGuideVisuals();
     addChatBubble('assistant', step.done);
@@ -413,7 +412,15 @@
       if (state.guide !== guide || guide.cancelled) return;
       guide.index += 1;
       if (guide.index < guide.steps.length) showGuideStep();
-      else endGuide();
+      else if (guide.tour) {
+        endGuide();
+        setSiteAccess(true);
+        document.body.classList.add('journey-complete');
+        window.dispatchEvent(new Event('nova:tour-complete'));
+        const unlocked = 'The tour is complete. The whole website is yours to explore now!';
+        addChatBubble('assistant', unlocked);
+        speak(unlocked, true);
+      } else endGuide();
     }, 1800);
     return true;
   }
@@ -668,8 +675,7 @@
     window.setTimeout(() => burst.remove(), 750);
   }
 
-  function teleportTo(x, y, onArrival) {
-    const destination = clampPosition(x, y);
+  function transitionToTarget(scrollTarget, focus, onArrival, block = 'center') {
     const version = ++state.teleportVersion;
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
     state.destination = null;
@@ -677,27 +683,60 @@
     state.gesture = null;
     actor.classList.remove('teleport-in');
     setStatus('Teleporting to your destination');
-    if (!reducedMotion) {
-      teleportBurst();
-      actor.classList.add('teleport-out');
-    }
-    window.setTimeout(() => {
+    if (!reducedMotion) teleportBurst();
+    actor.classList.add('teleport-out');
+    const fadeStarted = performance.now();
+    function afterFade(now) {
       if (version !== state.teleportVersion) return;
-      state.x = destination.x;
-      state.y = destination.y;
-      placeActor();
-      actor.classList.remove('teleport-out');
-      if (!reducedMotion) {
-        actor.classList.add('teleport-in');
-        teleportBurst();
-        startGesture('wave', true);
+      if (!reducedMotion && Number(getComputedStyle(actor).opacity) > 0.03) {
+        if (now - fadeStarted < 1200) {
+          requestAnimationFrame(afterFade);
+          return;
+        }
+        actor.style.transition = 'none';
+        actor.style.opacity = '0';
+        requestAnimationFrame(beginScroll);
+        return;
       }
-      window.setTimeout(() => {
+      beginScroll();
+    }
+    function beginScroll() {
+      if (version !== state.teleportVersion) return;
+      scrollTarget.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block });
+      const started = performance.now();
+      let previousScroll = window.scrollY;
+      let stableFrames = 0;
+      function afterScroll(now) {
         if (version !== state.teleportVersion) return;
-        actor.classList.remove('teleport-in');
-        onArrival?.();
-      }, reducedMotion ? 0 : 620);
-    }, reducedMotion ? 0 : 300);
+        const movement = Math.abs(window.scrollY - previousScroll);
+        stableFrames = movement < 0.75 ? stableFrames + 1 : 0;
+        previousScroll = window.scrollY;
+        if (!reducedMotion && (now - started < 220 || stableFrames < 6) && now - started < 2500) {
+          requestAnimationFrame(afterScroll);
+          return;
+        }
+        const position = guidedPosition(focus);
+        const destination = clampPosition(position.x, position.y);
+        state.x = destination.x;
+        state.y = destination.y;
+        placeActor();
+        actor.classList.remove('teleport-out');
+        actor.style.opacity = '';
+        actor.style.transition = '';
+        if (!reducedMotion) {
+          actor.classList.add('teleport-in');
+          teleportBurst();
+          startGesture('wave', true);
+        }
+        window.setTimeout(() => {
+          if (version !== state.teleportVersion) return;
+          actor.classList.remove('teleport-in');
+          onArrival?.();
+        }, reducedMotion ? 0 : 620);
+      }
+      requestAnimationFrame(afterScroll);
+    }
+    requestAnimationFrame(afterFade);
   }
 
   function startGesture(type, keepSpeech = false) {
@@ -977,7 +1016,7 @@
 
   document.querySelectorAll('[data-walkthrough-target]').forEach((button) => {
     button.addEventListener('click', () => {
-      if (!state.siteUnlocked) return;
+      if (!state.siteUnlocked && !state.guide?.tour) return;
       if (completeGuideStep(button)) return;
       addChatBubble('assistant', 'Ask me in chat to guide you here, and I will show you the next step.');
     });

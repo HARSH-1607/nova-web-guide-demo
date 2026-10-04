@@ -64,9 +64,10 @@
   }
 
   window.addEventListener('nova:reveal', () => {
-    hud.hidden = false;
+    hud.hidden = document.body.classList.contains('journey-complete');
     scheduleUpdate();
   });
+  window.addEventListener('nova:tour-complete', () => { hud.hidden = true; });
   window.addEventListener('nova:guide-target', (event) => {
     const scene = event.detail?.element?.closest('.cinematic-scene');
     const index = scenes.indexOf(scene);
