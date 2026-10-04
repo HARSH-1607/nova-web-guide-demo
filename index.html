@@ -4,10 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0f19">
-  <title>Aura | Animated web guide prototype</title>
+  <title>Aura | A guided experience with Nova</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="cinematic.css">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
   <script src="avatar.js" defer></script>
+  <script src="cinematic.js" defer></script>
   <script type="module" src="avatar3d.js"></script>
 </head>
 <body class="site-locked intro-active">
@@ -15,34 +17,47 @@
     <div class="welcome-orbit welcome-orbit-one" aria-hidden="true"></div>
     <div class="welcome-orbit welcome-orbit-two" aria-hidden="true"></div>
     <div class="welcome-copy">
-      <span class="welcome-kicker">AURA / YOUR INTERACTIVE GUIDE</span>
-      <h1 id="welcomeTitle">A website that <em>talks with you.</em></h1>
-      <p>Meet Nova. Ask a question, choose a path, or let her show you around.</p>
+      <span class="welcome-kicker">AURA PRESENTS &nbsp; / &nbsp; CHAPTER ZERO</span>
+      <h1 id="welcomeTitle">A new story <em>starts here.</em></h1>
+      <p>Meet Nova, your guide. Say hello, ask a question, or step into the story.</p>
     </div>
     <span class="welcome-character-label" aria-hidden="true">NOVA <span>✦</span> READY WHEN YOU ARE</span>
   </section>
+  <div class="cinematic-grain" aria-hidden="true"></div>
+  <div class="cinematic-vignette" aria-hidden="true"></div>
+  <div id="sceneHud" class="scene-hud" aria-live="polite" hidden>
+    <span class="scene-hud-kicker">AURA / LIVE JOURNEY</span>
+    <strong id="sceneHudTitle">The arrival</strong>
+    <span id="sceneHudCount">01 / 08</span>
+    <span class="scene-hud-track"><span id="sceneHudProgress"></span></span>
+  </div>
   <header class="site-header" inert>
     <a class="brand" href="#top" aria-label="Aura home" data-guide-spot="aura-logo" data-guide-aliases="aura logo,logo,brand" data-guide-description="This is the Aura logo. Clicking it brings you back to the top of the website.">AURA<span>✦</span></a>
     <span class="prototype-tag">Ask Nova to guide you</span>
   </header>
 
   <main id="top" inert>
-    <section class="hero page-section" aria-labelledby="hero-title" data-guide-spot="home" data-guide-aliases="home,hero,top of the page" data-guide-description="This is the home section. It introduces Nova and explains how to ask for a guided walkthrough.">
+    <section class="hero page-section cinematic-scene" aria-labelledby="hero-title" data-scene="arrival" data-scene-title="The arrival" data-scene-number="01" data-guide-spot="home" data-guide-aliases="home,hero,top of the page" data-guide-description="This is the home section. It introduces Nova and explains how to ask for a guided walkthrough.">
       <div class="hero-copy">
-        <span class="eyebrow">A guide with personality</span>
-        <h1 id="hero-title">Meet the character who can be <em>anywhere</em> on your site.</h1>
-        <p>Meet Nova, your interactive guide. Ask about the logo, workflow, integrations, features, pricing, trust, or FAQs. Nova will teleport to the right place and explain it. Ask Nova to “give me the cursor” when you want to click.</p>
+        <span class="eyebrow">01 / The arrival</span>
+        <h1 id="hero-title">A different way to <em>find your way.</em></h1>
+        <p>Nova is more than a chat box. Ask her to show you the site and she will move through it with you—appearing beside the details that matter, pointing out what to try next.</p>
+        <p class="hero-whisper">Say “show me the site” to begin your guided journey.</p>
       </div>
       <div class="hero-stage" aria-hidden="true">
         <div class="stage-ring stage-ring-one"></div>
         <div class="stage-ring stage-ring-two"></div>
-        <div class="stage-copy">Your companion, wherever you go.</div>
+        <div class="stage-beam"></div>
+        <div class="stage-emblem">✦</div>
+        <div class="stage-crosshair stage-crosshair-one">+</div>
+        <div class="stage-crosshair stage-crosshair-two">+</div>
+        <div class="stage-copy">A guide who comes with you. &nbsp; // &nbsp; 001</div>
       </div>
     </section>
 
-    <section id="features" class="page-section section-block" aria-labelledby="features-title" data-guide-spot="features" data-guide-aliases="features,animations,speech motion" data-guide-description="These cards explain Nova’s speech motion, walking, and gestures. Ask for a feature walkthrough to try the speech button.">
-      <span class="eyebrow">Expressions in motion</span>
-      <h2 id="features-title">Every interaction has a gesture.</h2>
+    <section id="features" class="page-section section-block cinematic-scene" aria-labelledby="features-title" data-scene="motion" data-scene-title="Motion & expression" data-scene-number="02" data-guide-spot="features" data-guide-aliases="features,animations,speech motion" data-guide-description="These cards explain Nova’s speech motion, walking, and gestures. Ask for a feature walkthrough to try the speech button.">
+      <span class="eyebrow">02 / Motion &amp; expression</span>
+      <h2 id="features-title">Every motion <em>means something.</em></h2>
       <p class="section-intro">Ask Nova to guide you here. The character will point out the next action and wait for you to try it.</p>
       <div class="feature-grid">
         <article class="glass-card"><span class="card-number">01</span><h3>Speech motion</h3><p>Expression morphs follow the spoken text with an approximate mouth-open rhythm.</p><button class="text-button" data-walkthrough-target="features">Hear the vowels ↗</button></article>
@@ -51,9 +66,9 @@
       </div>
     </section>
 
-    <section id="workflow" class="page-section section-block" aria-labelledby="workflow-title" data-guide-spot="workflow" data-guide-aliases="workflow,how it works,demo,interactive demo" data-guide-description="This interactive workflow demo shows how a visitor question is understood, routed to the right place, and confirmed with a click.">
-      <span class="eyebrow">Try a guided flow</span>
-      <h2 id="workflow-title">See the journey, one step at a time.</h2>
+    <section id="workflow" class="page-section section-block cinematic-scene" aria-labelledby="workflow-title" data-scene="journey" data-scene-title="The journey" data-scene-number="03" data-guide-spot="workflow" data-guide-aliases="workflow,how it works,demo,interactive demo" data-guide-description="This interactive workflow demo shows how a visitor question is understood, routed to the right place, and confirmed with a click.">
+      <span class="eyebrow">03 / The journey</span>
+      <h2 id="workflow-title">One question. <em>A path appears.</em></h2>
       <p class="section-intro">Choose a stage below to preview the visitor experience. This is an interactive demonstration; no live customer data is involved.</p>
       <div class="workflow-layout">
         <div class="workflow-steps" role="group" aria-label="Workflow stages">
@@ -70,9 +85,9 @@
       </div>
     </section>
 
-    <section id="integrations" class="page-section section-block" aria-labelledby="integrations-title" data-guide-spot="integrations" data-guide-aliases="integrations,connections,tools,support options,growth options" data-guide-description="The integrations gallery shows example ways a guide could connect to support, sales, or analytics tools. The filters are interactive, but the integrations themselves are only concepts in this prototype.">
-      <span class="eyebrow">Possible connections</span>
-      <h2 id="integrations-title">A guide that fits the journey.</h2>
+    <section id="integrations" class="page-section section-block cinematic-scene" aria-labelledby="integrations-title" data-scene="possibilities" data-scene-title="Possibilities" data-scene-number="04" data-guide-spot="integrations" data-guide-aliases="integrations,connections,tools,support options,growth options" data-guide-description="The integrations gallery shows example ways a guide could connect to support, sales, or analytics tools. The filters are interactive, but the integrations themselves are only concepts in this prototype.">
+      <span class="eyebrow">04 / Possibilities</span>
+      <h2 id="integrations-title">The right connection <em>at the right moment.</em></h2>
       <p class="section-intro">Explore example integrations by category. These cards describe future possibilities, not connected services.</p>
       <div class="filter-row" role="group" aria-label="Filter integration concepts">
         <button type="button" class="filter-chip is-active" data-integration-filter="all" aria-pressed="true">All</button>
@@ -87,9 +102,9 @@
       </div>
     </section>
 
-    <section id="trust" class="page-section section-block trust-block" aria-labelledby="trust-title" data-guide-spot="trust" data-guide-aliases="trust,privacy,security,local ai" data-guide-description="This trust section explains the prototype’s current boundaries: local AI responses, visible guided actions, and optional voice services.">
-      <span class="eyebrow">Built with clear boundaries</span>
-      <h2 id="trust-title">Know what Nova does.</h2>
+    <section id="trust" class="page-section section-block trust-block cinematic-scene" aria-labelledby="trust-title" data-scene="trust" data-scene-title="Trust & control" data-scene-number="05" data-guide-spot="trust" data-guide-aliases="trust,privacy,security,local ai" data-guide-description="This trust section explains the prototype’s current boundaries: local AI responses, visible guided actions, and optional voice services.">
+      <span class="eyebrow">05 / Trust &amp; control</span>
+      <h2 id="trust-title">Magic you can <em>understand.</em></h2>
       <div class="trust-grid">
         <article class="glass-card"><h3>Local answers</h3><p>When Ollama is running, chat responses are generated on this computer through the local test server.</p></article>
         <article class="glass-card"><h3>Visible guidance</h3><p>Nova highlights the next target and waits for your click. It does not silently activate buttons for you.</p></article>
@@ -97,9 +112,9 @@
       </div>
     </section>
 
-    <section id="faq" class="page-section section-block faq-block" aria-labelledby="faq-title" data-guide-spot="faq" data-guide-aliases="faq,frequently asked questions,questions" data-guide-description="The FAQ answers common questions about the prototype, including what is live and how to start a tour.">
-      <span class="eyebrow">Quick answers</span>
-      <h2 id="faq-title">Good questions, clear answers.</h2>
+    <section id="faq" class="page-section section-block faq-block cinematic-scene" aria-labelledby="faq-title" data-scene="answers" data-scene-title="The answers" data-scene-number="06" data-guide-spot="faq" data-guide-aliases="faq,frequently asked questions,questions" data-guide-description="The FAQ answers common questions about the prototype, including what is live and how to start a tour.">
+      <span class="eyebrow">06 / The answers</span>
+      <h2 id="faq-title">Questions are <em>part of the story.</em></h2>
       <div class="faq-list">
         <details><summary>How do I start a guided tour?</summary><p>Type “show me the site” in Nova’s chat. Nova will visit each step and wait for your click.</p></details>
         <details><summary>Why can’t I click the site yet?</summary><p>Site controls start locked. Type “give me the cursor” in Nova’s chat to unlock them, or “take the cursor back” to lock them again.</p></details>
@@ -109,9 +124,9 @@
       </div>
     </section>
 
-    <section id="pricing" class="page-section section-block" aria-labelledby="pricing-title">
-      <span class="eyebrow">Example destination</span>
-      <h2 id="pricing-title">The guide can lead visitors here.</h2>
+    <section id="pricing" class="page-section section-block cinematic-scene" aria-labelledby="pricing-title" data-scene="plans" data-scene-title="The plans" data-scene-number="07" data-guide-spot="pricing" data-guide-aliases="pricing,plans,prices,cost" data-guide-description="These are example plans for the prototype, not live prices. Nova can show you this section and explain what each tier might represent.">
+      <span class="eyebrow">07 / The plans</span>
+      <h2 id="pricing-title">Choose the scale <em>of your story.</em></h2>
       <p class="section-intro">Nova can teleport here and point out the next action. Pricing details are placeholders while we focus on the character interaction system.</p>
       <div class="pricing-grid">
         <article class="glass-card"><h3>Starter</h3><p>For a focused proof of concept.</p><button class="text-button" data-walkthrough-target="pricing">Ask about plans ↗</button></article>
@@ -120,9 +135,9 @@
       </div>
     </section>
 
-    <section id="contact" class="page-section section-block contact-block" aria-labelledby="contact-title">
-      <span class="eyebrow">Another destination</span>
-      <h2 id="contact-title">A little joy goes a long way.</h2>
+    <section id="contact" class="page-section section-block contact-block cinematic-scene" aria-labelledby="contact-title" data-scene="finale" data-scene-title="The finale" data-scene-number="08" data-guide-spot="contact" data-guide-aliases="contact,finale,finish" data-guide-description="This is the finale of the prototype walkthrough. Finish the tour to celebrate with Nova.">
+      <span class="eyebrow">08 / The finale</span>
+      <h2 id="contact-title">Every journey deserves <em>a little joy.</em></h2>
       <p>Tap the button and the guide will come over to celebrate with you.</p>
       <button class="button primary" data-walkthrough-target="contact">Finish the tour</button>
     </section>
@@ -138,6 +153,11 @@
 
   <aside class="control-panel" aria-label="Character controls">
     <div class="control-head"><span class="status-light"></span><div><strong>Meet Nova</strong><small id="avatarStatus" aria-live="polite">Loading character…</small></div></div>
+    <div class="scene-navigation" aria-label="Navigate with Nova">
+      <span id="sceneNavLabel">01 / The arrival</span>
+      <div><button type="button" data-scene-nav="previous" aria-label="Ask Nova to show the previous scene">←</button><button type="button" data-scene-nav="next" aria-label="Ask Nova to show the next scene">Next scene →</button></div>
+    </div>
+    <button id="skipGuideInline" class="skip-guide-inline" type="button" hidden>Skip this guidance</button>
     <div class="welcome-prompts" aria-label="Start with Nova">
       <span>Where should we begin?</span>
       <div class="welcome-prompt-list">

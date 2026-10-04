@@ -397,7 +397,7 @@ http.createServer((request, response) => {
   }
   if (rootDirectory === __dirname) {
     const publicPath = relativePath.replace(/\\/g, '/');
-    const allowedRootFiles = new Set(['index.html', 'styles.css', 'avatar.js', 'avatar3d.js', 'robot-avatar.js']);
+    const allowedRootFiles = new Set(['index.html', 'styles.css', 'cinematic.css', 'avatar.js', 'cinematic.js', 'avatar3d.js', 'robot-avatar.js']);
     const allowed = allowedRootFiles.has(publicPath)
       || /^avatar\/[a-z-]+\.webp$/.test(publicPath)
       || /^vendor\/.+\.(js|txt)$/.test(publicPath)

@@ -35,6 +35,7 @@
   const speechInput = document.getElementById('speechText');
   const askButton = document.getElementById('askButton');
   const guideHint = document.getElementById('guideHint');
+  const skipGuideInline = document.getElementById('skipGuideInline');
   const guideHintText = document.getElementById('guideHintText');
   const guidePointer = document.getElementById('guidePointer');
   const guidePointerLine = document.getElementById('guidePointerLine');
@@ -71,6 +72,7 @@
     window.scrollTo({ top: 0, behavior: 'instant' });
     if (!state.guide && !state.destination) Object.assign(state, dockPosition());
     placeActor();
+    window.dispatchEvent(new Event('nova:reveal'));
   }
   function setSiteAccess(unlocked) {
     state.siteUnlocked = unlocked;
@@ -282,7 +284,21 @@
     const panel = document.querySelector('.control-panel').getBoundingClientRect();
     return {
       x: Math.max(0, (window.innerWidth - size.width) / 2),
-      y: Math.max(window.innerHeight < 680 ? 90 : 135, panel.top - size.height - 12)
+      y: Math.max(window.innerWidth <= 600 ? 175 : window.innerHeight < 680 ? 90 : 135, panel.top - size.height - 12)
+    };
+  }
+
+  function guidedPosition(target) {
+    const rect = target.getBoundingClientRect();
+    const size = actorSize();
+    if (window.innerWidth < 700) {
+      const panel = document.querySelector('.control-panel').getBoundingClientRect();
+      return { x: window.innerWidth - size.width - 12, y: Math.max(8, panel.top - size.height + 12) };
+    }
+    const fitsRight = rect.right + size.width + 24 < window.innerWidth;
+    return {
+      x: fitsRight ? rect.right + 18 : rect.left - size.width - 18,
+      y: rect.top + rect.height / 2 - size.height * 0.53
     };
   }
 
@@ -292,9 +308,19 @@
     guidePointer.hidden = true;
   }
 
+  function positionGuideHint() {
+    const width = guideHint.offsetWidth;
+    const height = guideHint.offsetHeight;
+    const roomAbove = state.y - height - 8 >= 12;
+    const x = roomAbove ? state.x : window.innerWidth - width - 12;
+    guideHint.style.left = `${Math.max(12, Math.min(window.innerWidth - width - 12, x))}px`;
+    guideHint.style.top = `${roomAbove ? state.y - height - 8 : window.innerWidth >= 700 ? 88 : 12}px`;
+  }
+
   function endGuide(returnToDock = true) {
     if (state.guide) state.guide.cancelled = true;
     state.guide = null;
+    skipGuideInline.hidden = true;
     state.teleportVersion += 1;
     actor.classList.remove('teleport-out', 'teleport-in');
     state.destination = null;
@@ -311,35 +337,33 @@
     endGuide(false);
     const steps = request === 'tour' ? ['features', 'pricing', 'contact'] : [request];
     state.guide = { steps, index: 0, cancelled: false, awaiting: false };
+    skipGuideInline.hidden = false;
     showGuideStep();
   }
 
   function showLandmark(element) {
     endGuide(false);
+    window.dispatchEvent(new CustomEvent('nova:guide-target', { detail: { element } }));
     if (element.matches('[data-integration-category]')) setIntegrationFilter(element.dataset.integrationCategory);
     const focus = element.querySelector('h1,h2,h3') || element;
     const guide = { cancelled: false, awaiting: false, targetElement: focus, landmark: true };
     state.guide = guide;
+    skipGuideInline.hidden = false;
     const description = element.dataset.guideDescription || `Here is ${element.dataset.guideSpot}.`;
     addChatBubble('assistant', description);
     speak(description, true);
-    element.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
+    element.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: window.innerWidth < 700 && element.matches('.cinematic-scene') ? 'start' : 'center' });
     window.setTimeout(() => {
       if (state.guide !== guide || guide.cancelled) return;
-      const rect = focus.getBoundingClientRect();
-      const size = actorSize();
-      const fitsRight = rect.right + size.width + 24 < window.innerWidth;
-      const x = fitsRight ? rect.right + 18 : rect.left - size.width - 18;
-      const y = rect.top + rect.height / 2 - size.height * 0.52;
-      teleportTo(x, y, () => {
+      const position = guidedPosition(focus);
+      teleportTo(position.x, position.y, () => {
         if (state.guide !== guide || guide.cancelled) return;
         guide.awaiting = true;
         focus.classList.add('guide-target-active');
         guidePointer.hidden = false;
         guideHintText.textContent = description;
         guideHint.hidden = false;
-        guideHint.style.left = `${Math.max(12, Math.min(window.innerWidth - guideHint.offsetWidth - 12, state.x))}px`;
-        guideHint.style.top = `${Math.max(12, state.y - guideHint.offsetHeight - 8)}px`;
+        positionGuideHint();
         startGesture('point', true);
         window.setTimeout(() => { if (state.guide === guide) endGuide(); }, Math.max(6000, description.length * 65));
       });
@@ -354,6 +378,7 @@
     const step = guideSteps[guide.steps[guide.index]];
     const target = document.querySelector(`[data-walkthrough-target="${step.target}"]`);
     if (!target) { endGuide(); return; }
+    window.dispatchEvent(new CustomEvent('nova:guide-target', { detail: { element: target } }));
     guide.targetElement = target;
     const instruction = state.siteUnlocked ? step.text : `${step.text} Ask me to “give me the cursor” when you are ready to click.`;
     addChatBubble('assistant', instruction);
@@ -361,22 +386,15 @@
     target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
     window.setTimeout(() => {
       if (state.guide !== guide || guide.cancelled) return;
-      const rect = target.getBoundingClientRect();
-      const size = actorSize();
-      const rightSide = rect.right + size.width + 24 < window.innerWidth;
-      const x = rightSide ? rect.right + 18 : rect.left - size.width - 18;
-      const y = rect.top + rect.height / 2 - size.height * 0.55;
-      teleportTo(x, y, () => {
+      const position = guidedPosition(target);
+      teleportTo(position.x, position.y, () => {
         if (state.guide !== guide || guide.cancelled) return;
         guide.awaiting = true;
         target.classList.add('guide-target-active');
         guidePointer.hidden = false;
         guideHintText.textContent = `Step ${guide.index + 1}/${guide.steps.length}: ${instruction}`;
         guideHint.hidden = false;
-        const hintX = Math.max(12, Math.min(window.innerWidth - guideHint.offsetWidth - 12, state.x));
-        const hintY = Math.max(12, Math.min(window.innerHeight - guideHint.offsetHeight - 12, state.y - guideHint.offsetHeight - 8));
-        guideHint.style.left = `${hintX}px`;
-        guideHint.style.top = `${hintY}px`;
+        positionGuideHint();
         startGesture('point', true);
       });
     }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 80 : 650);
@@ -534,7 +552,8 @@
       y: Math.max(0, Math.min(window.innerHeight - height, y))
     };
     const panel = document.querySelector('.control-panel').getBoundingClientRect();
-    const overlapsPanel = position.x < panel.right && position.x + width > panel.left
+    const overlapsPanel = !(window.innerWidth < 700 && state.guide)
+      && position.x < panel.right && position.x + width > panel.left
       && position.y < panel.bottom && position.y + height > panel.top;
     if (overlapsPanel) {
       if (panel.top - height - 12 >= 0) position.y = panel.top - height - 12;
@@ -979,6 +998,12 @@
       askAI();
     });
   });
+  window.addEventListener('nova:scene-request', (event) => {
+    const element = event.detail?.element;
+    if (!element?.matches?.('.cinematic-scene')) return;
+    revealSite();
+    showLandmark(element);
+  });
   document.getElementById('retryModels').addEventListener('click', loadAIProviders);
   aiProvider.addEventListener('change', updateProviderNotice);
   modelSelect.addEventListener('change', updateProviderNotice);
@@ -995,6 +1020,7 @@
     selectedVoice = voiceSelect.value.startsWith('browser:') ? availableVoices[browserIndex] || null : null;
   });
   document.getElementById('skipGuide').addEventListener('click', () => endGuide());
+  skipGuideInline.addEventListener('click', () => endGuide());
   window.addEventListener('resize', () => {
     Object.assign(state, state.intro ? introPosition() : state.guide ? clampPosition(state.x, state.y) : dockPosition());
     if (state.destination) state.destination = clampPosition(state.destination.x, state.destination.y);
