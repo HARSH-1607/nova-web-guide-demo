@@ -39,7 +39,6 @@
   const guideHintText = document.getElementById('guideHintText');
   const guidePointer = document.getElementById('guidePointer');
   const guidePointerLine = document.getElementById('guidePointerLine');
-  const siteAccessNotice = document.getElementById('siteAccessNotice');
   const context = canvas.getContext('2d', { alpha: true });
   const faceLayer = document.createElement('canvas');
   faceLayer.width = FRAME_WIDTH;
@@ -60,7 +59,7 @@
     x: 0, y: 0, destination: null, onArrival: null,
     gesture: null, speech: null, pendingSpeech: null, blinkUntil: 0, nextBlink: 0,
     lastTick: 0, ready: false, walkStarted: 0, guide: null,
-    pointer: { x: 0, y: 0, active: false }, siteUnlocked: false, intro: true, teleportVersion: 0,
+    pointer: { x: 0, y: 0, active: false }, intro: true, teleportVersion: 0,
     currentFrame: null, previousFrame: null, frameChangedAt: 0
   };
 
@@ -69,30 +68,11 @@
     if (!state.intro) return;
     state.intro = false;
     document.body.classList.remove('intro-active');
+    document.querySelectorAll('.site-header, main, .site-footer').forEach((section) => { section.inert = false; });
     window.scrollTo({ top: 0, behavior: 'instant' });
     if (!state.guide && !state.destination) Object.assign(state, dockPosition());
     placeActor();
     window.dispatchEvent(new Event('nova:reveal'));
-  }
-  function setSiteAccess(unlocked) {
-    state.siteUnlocked = unlocked;
-    document.body.classList.toggle('site-locked', !unlocked);
-    document.body.classList.toggle('tour-active', !unlocked && Boolean(state.guide?.tour));
-    document.querySelectorAll('.site-header, main, .site-footer').forEach((section) => {
-      section.inert = !unlocked && !(section.tagName === 'MAIN' && state.guide?.tour);
-    });
-    siteAccessNotice.classList.toggle('is-unlocked', unlocked);
-    siteAccessNotice.textContent = unlocked
-      ? 'Cursor granted. You can click site controls. Ask Nova to “take the cursor back” to lock them.'
-      : state.guide?.tour
-        ? 'Tour mode: click only the glowing target. Finish the tour to unlock the whole site.'
-        : document.body.classList.contains('cursor-revealed')
-          ? 'Site controls locked. Your cursor stays visible; ask Nova to unlock the site.'
-          : 'Site controls locked. Ask Nova to “give me the cursor.”';
-    if (state.guide?.awaiting && state.guide.steps) {
-      const step = guideSteps[state.guide.steps[state.guide.index]];
-      guideHintText.textContent = `Step ${state.guide.index + 1}/${state.guide.steps.length}: ${step.text}${unlocked || state.guide.tour ? '' : ' Ask me to “give me the cursor” before clicking.'}`;
-    }
   }
   window.addEventListener('pointermove', (event) => {
     state.pointer.x = event.clientX;
@@ -327,7 +307,6 @@
   function endGuide(returnToDock = true) {
     if (state.guide) state.guide.cancelled = true;
     state.guide = null;
-    setSiteAccess(state.siteUnlocked);
     skipGuideInline.hidden = true;
     state.teleportVersion += 1;
     actor.classList.remove('teleport-out', 'teleport-in');
@@ -347,8 +326,6 @@
     endGuide(false);
     const steps = request === 'tour' ? ['features', 'pricing', 'contact'] : [request];
     state.guide = { steps, index: 0, cancelled: false, awaiting: false, tour: request === 'tour' };
-    if (state.guide.tour) document.body.classList.add('cursor-revealed');
-    setSiteAccess(state.siteUnlocked);
     skipGuideInline.hidden = false;
     showGuideStep();
   }
@@ -387,7 +364,7 @@
     if (!target) { endGuide(); return; }
     window.dispatchEvent(new CustomEvent('nova:guide-target', { detail: { element: target } }));
     guide.targetElement = target;
-    const instruction = state.siteUnlocked || guide.tour ? step.text : `${step.text} Ask me to “give me the cursor” when you are ready to click.`;
+    const instruction = step.text;
     addChatBubble('assistant', instruction);
     transitionToTarget(target, target, () => {
       if (state.guide !== guide || guide.cancelled) return;
@@ -405,7 +382,7 @@
   function completeGuideStep(target) {
     const guide = state.guide;
     const step = guide?.steps && guideSteps[guide.steps[guide.index]];
-    if (!step || !guide.awaiting || (!state.siteUnlocked && !guide.tour) || target.dataset.walkthroughTarget !== step.target) return false;
+    if (!step || !guide.awaiting || target.dataset.walkthroughTarget !== step.target) return false;
     guide.awaiting = false;
     clearGuideVisuals();
     addChatBubble('assistant', step.done);
@@ -417,12 +394,11 @@
       if (guide.index < guide.steps.length) showGuideStep();
       else if (guide.tour) {
         endGuide();
-        setSiteAccess(true);
         document.body.classList.add('journey-complete');
         window.dispatchEvent(new Event('nova:tour-complete'));
-        const unlocked = 'The tour is complete. The whole website is yours to explore now!';
-        addChatBubble('assistant', unlocked);
-        speak(unlocked, true);
+        const finished = 'The tour is complete. Keep exploring any part of the website!';
+        addChatBubble('assistant', finished);
+        speak(finished, true);
       } else endGuide();
     }, 1800);
     return true;
@@ -444,27 +420,6 @@
   async function askAI() {
     const message = speechInput.value.trim();
     if (!message || chatRequestInFlight) return;
-    if (/\b(give|grant|unlock|enable|release|need|want)\b.*\b(cursor|mouse|site access|website access)\b|\blet me (use|click|control)\b.*\b(site|website|page)\b/i.test(message)) {
-      addChatBubble('user', message);
-      speechInput.value = '';
-      revealSite();
-      setSiteAccess(true);
-      const reply = 'You have the cursor now. You can click the highlighted control.';
-      addChatBubble('assistant', reply);
-      speak(reply, true);
-      return;
-    }
-    if (/\b(take (?:the |my )?cursor back|hide (?:the )?cursor|lock (?:the )?(?:site|website|page)|disable (?:site )?controls)\b/i.test(message)) {
-      addChatBubble('user', message);
-      speechInput.value = '';
-      setSiteAccess(false);
-      const reply = document.body.classList.contains('cursor-revealed')
-        ? 'The site controls are locked again, but your cursor will stay visible.'
-        : 'The site controls are locked again. Ask me whenever you want the cursor back.';
-      addChatBubble('assistant', reply);
-      speak(reply, true);
-      return;
-    }
     if (/^(stop|cancel|skip)(?: (?:the )?(?:tour|walkthrough))?[.!]?$/i.test(message)) {
       addChatBubble('user', message);
       speechInput.value = '';
@@ -485,7 +440,7 @@
     if (state.intro && /\b(what can you do|how can you help|what do you do)\b/i.test(message)) {
       addChatBubble('user', message);
       speechInput.value = '';
-      const reply = 'I can answer questions, guide you to features or pricing, point out buttons, and give you the cursor when you want to explore. Try saying show me the site!';
+      const reply = 'I can answer questions, guide you to features or pricing, and point out buttons. You can explore the site whenever it opens. Try saying show me the site!';
       addChatBubble('assistant', reply);
       speak(reply, true);
       startGesture('point', true);
@@ -1021,7 +976,6 @@
 
   document.querySelectorAll('[data-walkthrough-target]').forEach((button) => {
     button.addEventListener('click', () => {
-      if (!state.siteUnlocked && !state.guide?.tour) return;
       if (completeGuideStep(button)) return;
       addChatBubble('assistant', 'Ask me in chat to guide you here, and I will show you the next step.');
     });
@@ -1075,7 +1029,6 @@
   state.x = initial.x;
   state.y = initial.y;
   state.nextBlink = performance.now() + 2400;
-  setSiteAccess(false);
   addChatBubble('assistant', 'Welcome to Aura! I’m Nova. I can answer questions or take you on a guided tour. What would you like to explore?');
   placeActor();
   requestAnimationFrame(animate);

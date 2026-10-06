@@ -13,7 +13,7 @@
   <script src="contact.js" defer></script>
   <script type="module" src="avatar3d.js"></script>
 </head>
-<body class="site-locked intro-active">
+<body class="intro-active">
   <section id="welcomeStage" class="welcome-stage" aria-labelledby="welcomeTitle">
     <div class="welcome-orbit welcome-orbit-one" aria-hidden="true"></div>
     <div class="welcome-orbit welcome-orbit-two" aria-hidden="true"></div>
@@ -118,7 +118,7 @@
       <h2 id="faq-title">Questions are <em>part of the story.</em></h2>
       <div class="faq-list">
         <details><summary>How do I start a guided tour?</summary><p>Type “show me the site” in Nova’s chat. Nova will visit each step and wait for your click.</p></details>
-        <details><summary>Why can’t I click the site yet?</summary><p>Site controls start locked. Type “give me the cursor” in Nova’s chat to unlock them, or “take the cursor back” to lock them again.</p></details>
+        <details><summary>When can I explore the site?</summary><p>As soon as Nova opens the website, you can use its controls freely. The guided tour is optional.</p></details>
         <details><summary>Can Nova go to a specific place?</summary><p>Yes. Try “go to the Aura logo,” “show me the workflow,” or “take me to integrations.”</p></details>
         <details><summary>Are the pricing and integrations live?</summary><p>No. They are placeholders and concept cards for this prototype.</p></details>
         <details><summary>Does chat need a local AI model?</summary><p>Guided destinations work without one. Open-ended chat requires Ollama and a local model.</p></details>
@@ -187,8 +187,7 @@
         <button type="button" data-welcome-prompt="Show me pricing">Explore pricing <span>→</span></button>
       </div>
     </div>
-    <p id="siteAccessNotice" class="access-notice" role="status" aria-live="polite">Site controls locked. Ask Nova to “give me the cursor.”</p>
-    <div id="chatHistory" class="chat-history" role="log" aria-label="Conversation with Nova" aria-live="polite"><p class="chat-empty">Try “show me the site” or “give me the cursor.”</p></div>
+    <div id="chatHistory" class="chat-history" role="log" aria-label="Conversation with Nova" aria-live="polite"><p class="chat-empty">Try “show me the site” or ask about a section.</p></div>
     <form id="speechForm" class="speech-form">
       <label for="speechText">Ask Nova</label>
       <div class="speech-row"><input id="speechText" maxlength="240" placeholder="Show me the site…" autocomplete="off"><button id="askButton" class="button primary" type="submit" aria-label="Ask Nova">Ask</button></div>
