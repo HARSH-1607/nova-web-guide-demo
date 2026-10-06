@@ -86,7 +86,9 @@
       ? 'Cursor granted. You can click site controls. Ask Nova to “take the cursor back” to lock them.'
       : state.guide?.tour
         ? 'Tour mode: click only the glowing target. Finish the tour to unlock the whole site.'
-        : 'Site controls locked. Ask Nova to “give me the cursor.”';
+        : document.body.classList.contains('cursor-revealed')
+          ? 'Site controls locked. Your cursor stays visible; ask Nova to unlock the site.'
+          : 'Site controls locked. Ask Nova to “give me the cursor.”';
     if (state.guide?.awaiting && state.guide.steps) {
       const step = guideSteps[state.guide.steps[state.guide.index]];
       guideHintText.textContent = `Step ${state.guide.index + 1}/${state.guide.steps.length}: ${step.text}${unlocked || state.guide.tour ? '' : ' Ask me to “give me the cursor” before clicking.'}`;
@@ -345,6 +347,7 @@
     endGuide(false);
     const steps = request === 'tour' ? ['features', 'pricing', 'contact'] : [request];
     state.guide = { steps, index: 0, cancelled: false, awaiting: false, tour: request === 'tour' };
+    if (state.guide.tour) document.body.classList.add('cursor-revealed');
     setSiteAccess(state.siteUnlocked);
     skipGuideInline.hidden = false;
     showGuideStep();
@@ -455,7 +458,9 @@
       addChatBubble('user', message);
       speechInput.value = '';
       setSiteAccess(false);
-      const reply = 'The site controls are locked again. Ask me whenever you want the cursor back.';
+      const reply = document.body.classList.contains('cursor-revealed')
+        ? 'The site controls are locked again, but your cursor will stay visible.'
+        : 'The site controls are locked again. Ask me whenever you want the cursor back.';
       addChatBubble('assistant', reply);
       speak(reply, true);
       return;
