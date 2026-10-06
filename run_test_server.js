@@ -19,7 +19,14 @@ const MAX_CHAT_HISTORY = 8;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 const OPENAI_API_URL = process.env.NODE_ENV === 'test' && process.env.OPENAI_TEST_API_URL
   ? process.env.OPENAI_TEST_API_URL : 'https://api.openai.com/v1/responses';
-const GUIDE_PROMPT = 'You are Nova, a warm, concise guide to the Aura demo website. Reply in one or two short spoken sentences, at most 240 characters. Use plain text only: no Markdown, lists, or fake links. The site has a rigged 3D guide, teleporting walkthroughs, an interactive workflow preview, filterable integration concepts, a trust section, FAQs, placeholder pricing, and a contact-tour ending. Site controls start locked; visitors can type "give me the cursor" to unlock them and "take the cursor back" to lock them. The integrations and prices are not live; never invent service connections or prices. Guided navigation and cursor access are handled by the webpage, so do not claim you moved, clicked, unlocked, or completed an action unless the webpage did so. Open-ended answers may suggest a named page section.';
+const CONTACT_TO_EMAIL = process.env.CONTACT_TO_EMAIL || '';
+const CONTACT_PUBLIC_EMAIL = process.env.CONTACT_PUBLIC_EMAIL || '';
+const CONTACT_FROM_EMAIL = process.env.CONTACT_FROM_EMAIL || 'Aura Feedback <onboarding@resend.dev>';
+const RESEND_API_URL = process.env.NODE_ENV === 'test' && process.env.RESEND_TEST_API_URL
+  ? process.env.RESEND_TEST_API_URL : 'https://api.resend.com/emails';
+const contactRequestTimes = [];
+let contactRequestInProgress = false;
+const GUIDE_PROMPT = 'You are Nova, a warm, concise guide to the Aura demo website. Reply in one or two short spoken sentences, at most 240 characters. Use plain text only: no Markdown, lists, or fake links. The site has a rigged 3D guide, teleporting walkthroughs, an interactive workflow preview, filterable integration concepts, a trust section, FAQs, placeholder pricing, and a contact section with a feedback form and direct email link. Site controls start locked; visitors can type "give me the cursor" to unlock them and "take the cursor back" to lock them. The integrations and prices are not live; never invent service connections or prices. Guided navigation and cursor access are handled by the webpage, so do not claim you moved, clicked, unlocked, or completed an action unless the webpage did so. Open-ended answers may suggest a named page section.';
 let voiceCache = { expiresAt: 0, voices: [] };
 let speechRequestInProgress = false;
 let onlineRequestsInProgress = 0;
@@ -34,6 +41,14 @@ if (process.env.NODE_ENV === 'test' && process.env.OPENAI_TEST_API_URL) {
   if (testUrl.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(testUrl.hostname)
     || testUrl.pathname !== '/v1/responses' || testUrl.username || testUrl.password) {
     throw new Error('OPENAI_TEST_API_URL must point to a loopback /v1/responses endpoint.');
+  }
+}
+
+if (process.env.NODE_ENV === 'test' && process.env.RESEND_TEST_API_URL) {
+  const testUrl = new URL(RESEND_API_URL);
+  if (testUrl.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(testUrl.hostname)
+    || testUrl.pathname !== '/emails' || testUrl.username || testUrl.password) {
+    throw new Error('RESEND_TEST_API_URL must point to a loopback /emails endpoint.');
   }
 }
 
@@ -114,6 +129,72 @@ function validateChat(body) {
       !entry || typeof entry !== 'object' || !['user', 'assistant'].includes(entry.role)
       || typeof entry.content !== 'string' || !entry.content.trim() || entry.content.length > MAX_TEXT_LENGTH)) return null;
   return { message, history };
+}
+
+function validateContact(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const type = body.type;
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  const message = typeof body.message === 'string' ? body.message.trim() : '';
+  if (!['suggestion', 'bug', 'other'].includes(type) || name.length > 80
+    || !/^[^\s@<>\r\n]+@[^\s@<>\r\n]+\.[^\s@<>\r\n]+$/.test(email) || email.length > 254
+    || message.length < 10 || message.length > 2000 || /[\r\n]/.test(name)) return null;
+  return { type, name, email, message, website: body.website };
+}
+
+async function handleContact(request, response, pathname) {
+  if (pathname === '/api/contact/status' && request.method === 'GET') {
+    return sendJson(response, 200, {
+      available: Boolean(process.env.RESEND_API_KEY && CONTACT_TO_EMAIL),
+      publicEmail: /^[^\s@<>\r\n]+@[^\s@<>\r\n]+\.[^\s@<>\r\n]+$/.test(CONTACT_PUBLIC_EMAIL)
+        ? CONTACT_PUBLIC_EMAIL : null
+    });
+  }
+  if (pathname !== '/api/contact' || request.method !== 'POST') {
+    return sendJson(response, 404, { error: 'Unknown API endpoint' });
+  }
+  let contact;
+  try { contact = validateContact(await readJsonBody(request)); }
+  catch (error) { return sendJson(response, error.status || 400, { error: error.message }); }
+  if (!contact) return sendJson(response, 400, { error: 'Enter a valid email and a message of 10–2000 characters.' });
+  // Hidden field catches simple bots without pretending that the message was delivered.
+  if (contact.website) return sendJson(response, 400, { error: 'Could not send this message.' });
+  if (!process.env.RESEND_API_KEY || !CONTACT_TO_EMAIL) return sendJson(response, 503, { error: 'The contact form is not ready yet. Please try again later.' });
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  while (contactRequestTimes.length && contactRequestTimes[0] < cutoff) contactRequestTimes.shift();
+  if (contactRequestTimes.length >= 20 || contactRequestInProgress) {
+    return sendJson(response, 429, { error: 'Messages are temporarily limited. Please try again later or use the email link.' });
+  }
+  contactRequestInProgress = true;
+  try {
+    const upstream = await fetch(RESEND_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: CONTACT_FROM_EMAIL,
+        to: [CONTACT_TO_EMAIL],
+        reply_to: contact.email,
+        subject: `[Aura] ${contact.type === 'bug' ? 'Bug report' : contact.type === 'suggestion' ? 'Suggestion' : 'Message'}`,
+        text: `Type: ${contact.type}\nName: ${contact.name || 'Not provided'}\nReply to: ${contact.email}\n\n${contact.message}`
+      }),
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!upstream.ok) {
+      console.error(`Contact delivery failed: Resend HTTP ${upstream.status}`);
+      return sendJson(response, 502, { error: 'Your message was not sent. Please try again later.' });
+    }
+    contactRequestTimes.push(Date.now());
+    return sendJson(response, 200, { sent: true });
+  } catch (error) {
+    console.error(`Contact delivery failed: ${error.name || 'Network error'}`);
+    return sendJson(response, 502, { error: 'Your message was not sent. Please try again later.' });
+  } finally {
+    contactRequestInProgress = false;
+  }
 }
 
 function shortenReply(rawReply) {
@@ -230,7 +311,7 @@ async function readJsonBody(request) {
   let raw = '';
   for await (const chunk of request) {
     raw += chunk;
-    if (raw.length > 4096) {
+    if (raw.length > 8192) {
       const error = new Error('Request is too large');
       error.status = 413;
       throw error;
@@ -319,6 +400,7 @@ async function handleLocalLlm(request, response, pathname) {
 
 async function handleApi(request, response, pathname) {
   if (!checkLocalOrigin(request)) return sendJson(response, 403, { error: 'Cross-origin requests are not allowed' });
+  if (pathname === '/api/contact' || pathname.startsWith('/api/contact/')) return handleContact(request, response, pathname);
   if (pathname.startsWith('/api/llm/')) return handleLocalLlm(request, response, pathname);
   if (pathname.startsWith('/api/online/')) return handleOnlineAi(request, response, pathname);
   if (!process.env.ELEVENLABS_API_KEY) {
@@ -397,7 +479,7 @@ http.createServer((request, response) => {
   }
   if (rootDirectory === __dirname) {
     const publicPath = relativePath.replace(/\\/g, '/');
-    const allowedRootFiles = new Set(['index.html', 'styles.css', 'cinematic.css', 'avatar.js', 'cinematic.js', 'avatar3d.js', 'robot-avatar.js']);
+    const allowedRootFiles = new Set(['index.html', 'styles.css', 'cinematic.css', 'avatar.js', 'cinematic.js', 'contact.js', 'avatar3d.js', 'robot-avatar.js']);
     const allowed = allowedRootFiles.has(publicPath)
       || /^avatar\/[a-z-]+\.webp$/.test(publicPath)
       || /^vendor\/.+\.(js|txt)$/.test(publicPath)
@@ -421,4 +503,5 @@ http.createServer((request, response) => {
   console.log(`Local LLM endpoint: ${ollamaUrl.origin} (Ollama)`);
   console.log(process.env.OPENAI_API_KEY ? `Online AI enabled (${OPENAI_MODEL}).` : 'Online AI disabled (set OPENAI_API_KEY to enable).');
   console.log(process.env.ELEVENLABS_API_KEY ? 'ElevenLabs voices enabled.' : 'ElevenLabs voices disabled (set ELEVENLABS_API_KEY to enable).');
+  console.log(process.env.RESEND_API_KEY && CONTACT_TO_EMAIL ? 'Contact form delivery enabled.' : 'Contact form delivery disabled (set RESEND_API_KEY and CONTACT_TO_EMAIL to enable).');
 });

@@ -13,6 +13,14 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: CONTACT_TO_EMAIL
+        sync: false
+      - key: CONTACT_PUBLIC_EMAIL
+        sync: false
+      - key: CONTACT_FROM_EMAIL
+        sync: false
       - key: OPENAI_MODEL
         value: gpt-4.1-mini
       - key: ONLINE_REQUEST_LIMIT

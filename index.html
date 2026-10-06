@@ -10,6 +10,7 @@
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
   <script src="avatar.js" defer></script>
   <script src="cinematic.js" defer></script>
+  <script src="contact.js" defer></script>
   <script type="module" src="avatar3d.js"></script>
 </head>
 <body class="site-locked intro-active">
@@ -135,11 +136,31 @@
       </div>
     </section>
 
-    <section id="contact" class="page-section section-block contact-block cinematic-scene" aria-labelledby="contact-title" data-scene="finale" data-scene-title="The finale" data-scene-number="08" data-guide-spot="contact" data-guide-aliases="contact,finale,finish" data-guide-description="This is the finale of the prototype walkthrough. Finish the tour to celebrate with Nova.">
+    <section id="contact" class="page-section section-block contact-block cinematic-scene" aria-labelledby="contact-title" data-scene="finale" data-scene-title="The finale" data-scene-number="08" data-guide-spot="contact" data-guide-aliases="contact,finale,finish,feedback,bug report,suggestion" data-guide-description="Finish the tour with Nova, then send a suggestion or bug report through the contact form or email link.">
       <span class="eyebrow">08 / The finale</span>
       <h2 id="contact-title">Every journey deserves <em>a little joy.</em></h2>
       <p>Tap the button and the guide will come over to celebrate with you.</p>
       <button class="button primary" data-walkthrough-target="contact">Finish the tour</button>
+      <div class="contact-layout">
+        <div class="contact-copy">
+          <span class="contact-kicker">THE NEXT CHAPTER IS YOURS</span>
+          <h3>Help shape what Nova becomes.</h3>
+          <p>Spotted a bug or imagined a better moment? Tell us what happened. Your feedback goes straight to the person building this experience.</p>
+          <a id="contactEmail" class="contact-email" href="#contact" hidden>Email directly <span aria-hidden="true">↗</span></a>
+        </div>
+        <form id="contactForm" class="contact-form glass-card" aria-label="Send feedback">
+          <span class="contact-form-title">Send a message</span>
+          <div class="contact-fields-two">
+            <label>What is this about?<select name="type" required><option value="suggestion">Suggestion</option><option value="bug">Bug report</option><option value="other">Something else</option></select></label>
+            <label>Your name <small>(optional)</small><input name="name" type="text" maxlength="80" autocomplete="name" placeholder="Your name"></label>
+          </div>
+          <label>Your email <input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com"></label>
+          <label>Your message <textarea name="message" required minlength="10" maxlength="2000" rows="5" placeholder="Tell us what you noticed or what you would love to see…"></textarea></label>
+          <div class="contact-trap" aria-hidden="true"><label>Leave this empty<input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+          <div class="contact-form-actions"><button id="contactSubmit" class="button primary" type="submit">Send feedback <span aria-hidden="true">↗</span></button><span id="contactStatus" role="status" aria-live="polite">Checking message delivery…</span></div>
+          <p class="contact-privacy">We use your email only to reply about this message. Please don't include passwords or sensitive information.</p>
+        </form>
+      </div>
     </section>
   </main>
 
