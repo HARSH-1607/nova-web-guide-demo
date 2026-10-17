@@ -4,7 +4,7 @@ import { GLTFLoader } from './vendor/examples/jsm/loaders/GLTFLoader.js';
 // The downloaded CC0 model supplies the rig, body clips, and three facial morphs.
 // Its morphs are expressions rather than phonemes, so speech is an approximation.
 export async function loadRobotAvatar(scene) {
-  const gltf = await new GLTFLoader().loadAsync('./models/RobotExpressive.glb');
+  const gltf = await new GLTFLoader().loadAsync(new URL('./models/RobotExpressive.glb', import.meta.url).href);
   const root = gltf.scene;
   const bounds = new THREE.Box3().setFromObject(root);
   const size = bounds.getSize(new THREE.Vector3());

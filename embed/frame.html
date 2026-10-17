@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f19">
+  <title>Nova guide</title>
+  <link rel="stylesheet" href="frame.css">
+  <script type="importmap">{"imports":{"three":"../vendor/three.module.js"}}</script>
+  <script src="frame.js" defer></script>
+  <script type="module" src="../avatar3d.js"></script>
+</head>
+<body>
+  <div id="avatarActor" class="actor" role="button" tabindex="0" aria-label="Wave to Nova">
+    <span class="fallback-character" aria-hidden="true">✦</span>
+    <canvas id="avatar3dCanvas" aria-hidden="true"></canvas>
+  </div>
+  <section class="panel" aria-label="Chat with Nova">
+    <div class="panel-heading"><span class="status-dot" aria-hidden="true"></span><div><strong>Nova</strong><small id="status">Ready to guide</small></div><button id="soundToggle" type="button" aria-label="Turn voice off" title="Toggle voice">♫</button><button id="collapse" type="button" aria-label="Minimize Nova" title="Minimize Nova">−</button></div>
+    <div id="messages" class="messages" role="log" aria-live="polite"></div>
+    <div id="prompts" class="prompts" aria-label="Suggested destinations"></div>
+    <form id="questionForm" class="question-form"><label for="question">Ask Nova</label><div><input id="question" type="text" maxlength="500" autocomplete="off" placeholder="Show me around…" required><button id="send" type="submit" aria-label="Send message">↗</button></div></form>
+  </section>
+  <button id="restore" class="restore" type="button" aria-label="Open Nova guide" title="Open Nova guide" hidden>✦</button>
+</body>
+</html>

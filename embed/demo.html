@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sample Shop · Nova embed demo</title>
+  <style>
+    :root{font-family:Inter,system-ui,sans-serif;color:#193047;background:#f3f7fa;scroll-behavior:smooth}*{box-sizing:border-box}body{margin:0}header{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;padding:1.2rem 5vw;background:#fff;box-shadow:0 5px 24px #17293c12}nav{display:flex;gap:1rem}a{color:#176b7c;text-decoration:none}main{max-width:1100px;margin:auto;padding:0 5vw}section{min-height:68vh;padding:6rem 0;scroll-margin-top:5rem;border-bottom:1px solid #cfdae1}h1{font-size:clamp(3rem,7vw,6rem);line-height:1;letter-spacing:-.06em}h2{font-size:clamp(2rem,5vw,4rem);letter-spacing:-.05em}p{max-width:50ch;color:#577082;line-height:1.6}.card{display:inline-block;padding:1.3rem;border-radius:1rem;background:#fff;box-shadow:0 16px 40px #17304716}@media(max-width:640px){nav{gap:.5rem;font-size:.8rem}}
+  </style>
+</head>
+<body>
+  <header><strong>Sample Shop</strong><nav><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#contact">Contact</a></nav></header>
+  <main>
+    <section id="home" data-nova-guide="home" data-nova-description="Welcome to the sample shop. Nova is running as an embedded widget, separate from the website's own code."><h1>A guide for any website.</h1><p>This is a separate sample page. Ask Nova to show pricing, features, or contact.</p></section>
+    <section id="features" data-nova-guide="features" data-nova-description="These are the sample shop's features. Nova found and highlighted this section without knowing its layout in advance."><h2>Features</h2><div class="card">A simple, independent host page</div></section>
+    <section id="pricing" data-nova-guide="pricing" data-nova-aliases="plans,cost" data-nova-description="Here are the sample plans. Pricing on this page is illustrative, not a live offer."><h2>Pricing</h2><div class="card">Starter · Growth · Enterprise</div></section>
+    <section id="contact" data-nova-guide="contact" data-nova-description="This is the sample contact section. Add your real form or email address here when embedding Nova on your own website."><h2>Contact</h2><div class="card">hello@example.com</div></section>
+  </main>
+  <script src="nova-embed.js"></script>
+</body>
+</html>

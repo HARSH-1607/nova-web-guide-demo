@@ -68,6 +68,7 @@ const rootDirectory = fs.existsSync(path.join(nestedWebBuild, 'index.html'))
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
   '.data': 'application/octet-stream',
+  '.glb': 'model/gltf-binary',
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
@@ -110,6 +111,17 @@ function authorized(request) {
   const submitted = Buffer.from(header.slice(6), 'base64');
   const expected = Buffer.from(`nova:${DEMO_PASSWORD}`, 'utf8');
   return submitted.length === expected.length && crypto.timingSafeEqual(submitted, expected);
+}
+
+// The embeddable character is public static content; paid AI and the demo page stay protected.
+function publicEmbedAsset(pathname, method) {
+  if (method !== 'GET') return false;
+  return new Set([
+    '/embed/nova-embed.js', '/embed/frame.html', '/embed/frame.css', '/embed/frame.js', '/embed/demo.html',
+    '/avatar3d.js', '/robot-avatar.js', '/models/RobotExpressive.glb',
+    '/vendor/three.module.js', '/vendor/examples/jsm/loaders/GLTFLoader.js',
+    '/vendor/examples/jsm/utils/BufferGeometryUtils.js', '/vendor/examples/jsm/utils/SkeletonUtils.js'
+  ]).has(pathname);
 }
 
 function allowOnlineRequest() {
@@ -462,7 +474,7 @@ http.createServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }).end('ok');
     return;
   }
-  if (!authorized(request)) {
+  if (!authorized(request) && !publicEmbedAsset(pathname, request.method)) {
     response.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Nova private demo"', 'Cache-Control': 'no-store' }).end('Authentication required');
     return;
   }
@@ -481,6 +493,7 @@ http.createServer((request, response) => {
     const publicPath = relativePath.replace(/\\/g, '/');
     const allowedRootFiles = new Set(['index.html', 'styles.css', 'cinematic.css', 'avatar.js', 'cinematic.js', 'contact.js', 'avatar3d.js', 'robot-avatar.js']);
     const allowed = allowedRootFiles.has(publicPath)
+      || /^embed\/(?:nova-embed\.js|frame\.(?:html|css|js)|demo\.html)$/.test(publicPath)
       || /^avatar\/[a-z-]+\.webp$/.test(publicPath)
       || /^vendor\/.+\.(js|txt)$/.test(publicPath)
       || publicPath === 'models/RobotExpressive.glb'
