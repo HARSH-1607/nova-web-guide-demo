@@ -82,7 +82,17 @@ async function main() {
     await waitFor('document.querySelector("#pricing").style.outline.includes("solid")', 'Host section highlight');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("sample plans")', 'Widget reply');
     await waitFor('window.scrollY > 100', 'Host page scroll');
+    assert.equal(await evaluate('document.body.dataset.lastNovaStop'), 'pricing');
+    await evaluate('document.querySelector("iframe").contentDocument.querySelector("#startTour").click()');
+    await waitFor('document.body.dataset.lastNovaStop === "home"', 'Tour first stop');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#tourProgress").textContent.includes("1 / 4")', 'Tour progress');
+    await waitFor('!document.querySelector("iframe").contentDocument.querySelector("#tourNext").disabled', 'Tour next button');
+    await evaluate('document.querySelector("iframe").contentDocument.querySelector("#tourNext").click()');
+    await waitFor('document.body.dataset.lastNovaStop === "features"', 'Tour second stop');
+    await evaluate('document.querySelector("iframe").contentDocument.querySelector("#tourExit").click()');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#tourControls").hidden', 'Tour exit');
     if (process.env.CAPTURE_EMBED === '1') {
+      console.log('Widget layout:', await evaluate('(()=>{const p=document.querySelector("iframe").contentDocument.querySelector(".panel");return {height:p.clientHeight,scrollHeight:p.scrollHeight,maxHeight:getComputedStyle(p).maxHeight}})()'));
       const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
       const output = path.join(os.tmpdir(), 'nova-embed-preview.png');
       fs.writeFileSync(output, Buffer.from(screenshot.data, 'base64'));

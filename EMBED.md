@@ -15,6 +15,7 @@ Add this before the closing `</body>` tag on an HTML page:
 The script creates one fixed, transparent iframe in the lower-right corner. It scans sections with IDs automatically, and it also recognizes any element marked `data-nova-guide`. Its CSS and WebGL canvas stay inside the iframe, so they do not restyle your website. The avatar files are public static assets; the protected Aura demo page and paid AI API remain behind their existing authentication.
 
 Visitors can minimize the guide to a small floating button and reopen it. On narrow screens, the character and chat panel scale down to leave more room for the host page.
+The **Take a tour** button walks through up to 12 discovered destinations, one stop at a time. Visitors can go back, advance, or exit without losing access to the site. Pressing Escape minimizes the guide.
 
 Mark useful destinations with descriptions:
 
@@ -40,6 +41,19 @@ Or configure existing elements without changing their markup. Put this **before*
 ```
 
 Nova scrolls to and highlights only a target found on the host page. Without AI, she can navigate known sections, wave, and dance; unknown questions receive a helpful list of destinations.
+
+To react when Nova shows a destination, add an optional callback. It receives the guide key and the actual host-page element, so your site can record analytics or update its own UI. It is not called for AI-only chat answers:
+
+```html
+<script>
+  window.NovaEmbedConfig = {
+    onNavigate(key, element) {
+      console.log('Nova showed', key, element);
+    }
+  };
+</script>
+<script src="https://nova-web-guide-demo.onrender.com/embed/nova-embed.js"></script>
+```
 
 ## Optional AI on the host website
 

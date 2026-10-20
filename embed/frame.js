@@ -12,6 +12,13 @@
   const soundToggle = document.getElementById('soundToggle');
   const collapse = document.getElementById('collapse');
   const restore = document.getElementById('restore');
+  const startTour = document.getElementById('startTour');
+  const tourStartRow = document.querySelector('.tour-start-row');
+  const tourControls = document.getElementById('tourControls');
+  const tourPrevious = document.getElementById('tourPrevious');
+  const tourNext = document.getElementById('tourNext');
+  const tourExit = document.getElementById('tourExit');
+  const tourProgress = document.getElementById('tourProgress');
   let voiceEnabled = true;
   let speakingUntil = 0;
   let gesture = null;
@@ -19,6 +26,8 @@
   let blinkUntil = 0;
   let pointer = null;
   let pending = false;
+  let destinations = [];
+  let tourIndex = -1;
 
   function post(type, extra = {}) {
     parent.postMessage({ novaChannel: channel, type, ...extra }, '*');
@@ -65,6 +74,48 @@
     post('question', { question });
   }
 
+  function updateTourControls() {
+    const active = tourIndex >= 0;
+    tourStartRow.hidden = active;
+    tourControls.hidden = !active;
+    if (!active) return;
+    tourProgress.textContent = `${tourIndex + 1} / ${destinations.length} · ${destinations[tourIndex].label}`;
+    tourPrevious.disabled = pending || tourIndex === 0;
+    tourNext.disabled = pending;
+    tourNext.textContent = tourIndex === destinations.length - 1 ? 'Finish ✓' : 'Next →';
+  }
+
+  function endTour() {
+    tourIndex = -1;
+    updateTourControls();
+    post('clearHighlight');
+  }
+
+  function visitTour(index) {
+    if (pending || index < 0 || index >= destinations.length) return;
+    tourIndex = index;
+    const item = destinations[index];
+    pending = true;
+    sendButton.disabled = true;
+    bubble('visitor', `Show me ${item.label}`);
+    status.textContent = 'Finding section…';
+    updateTourControls();
+    post('navigate', { key: item.key });
+  }
+
+  startTour.addEventListener('click', () => {
+    if (!destinations.length) { bubble('nova', 'There are no guide stops on this page yet.'); return; }
+    visitTour(0);
+  });
+  tourPrevious.addEventListener('click', () => visitTour(tourIndex - 1));
+  tourNext.addEventListener('click', () => {
+    if (tourIndex === destinations.length - 1) {
+      endTour();
+      bubble('nova', 'That is the tour! Ask me about any section whenever you like.');
+    } else visitTour(tourIndex + 1);
+  });
+  tourExit.addEventListener('click', endTour);
+
   form.addEventListener('submit', (event) => { event.preventDefault(); ask(input.value.trim()); });
   soundToggle.addEventListener('click', () => {
     voiceEnabled = !voiceEnabled;
@@ -84,6 +135,7 @@
   });
   actor.addEventListener('click', () => { startGesture('wave'); bubble('nova', 'Hi! Ask me to show you a part of this site.'); });
   actor.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); actor.click(); } });
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') collapse.click(); });
   window.addEventListener('pointermove', (event) => {
     pointer = { x: (event.clientX - innerWidth * 0.5) / innerWidth, y: (event.clientY - innerHeight * 0.35) / innerHeight };
   }, { passive: true });
@@ -94,7 +146,11 @@
       const site = typeof event.data.siteTitle === 'string' ? event.data.siteTitle : 'this site';
       if (!messages.children.length) bubble('nova', `Hi! I'm Nova. I can help you explore ${site}.`);
       prompts.replaceChildren();
-      for (const item of (Array.isArray(event.data.targets) ? event.data.targets : []).slice(0, 4)) {
+      destinations = (Array.isArray(event.data.targets) ? event.data.targets : [])
+        .filter((item) => typeof item?.key === 'string' && typeof item?.label === 'string').slice(0, 12);
+      if (tourIndex >= destinations.length) tourIndex = -1;
+      updateTourControls();
+      for (const item of destinations.slice(0, 4)) {
         if (typeof item?.key !== 'string') continue;
         const button = document.createElement('button');
         button.type = 'button';
@@ -102,9 +158,10 @@
         button.addEventListener('click', () => ask(`Show me ${item.key}`));
         prompts.append(button);
       }
-    } else if (event.data.type === 'reply') {
+    } else if (event.data.type === 'reply' || event.data.type === 'navigated') {
       pending = false;
       sendButton.disabled = false;
+      updateTourControls();
       const reply = typeof event.data.text === 'string' ? event.data.text.slice(0, 1000) : 'I could not answer that.';
       bubble('nova', reply);
       status.textContent = 'Speaking…';

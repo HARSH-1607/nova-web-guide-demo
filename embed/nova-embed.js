@@ -83,25 +83,31 @@
     return best;
   }
 
+  function navigateTo(item) {
+    item.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    clearHighlight();
+    highlighted = {
+      element: item.element,
+      outline: item.element.style.outline,
+      outlineOffset: item.element.style.outlineOffset,
+      boxShadow: item.element.style.boxShadow
+    };
+    item.element.style.outline = '3px solid #8ef6d9';
+    item.element.style.outlineOffset = '6px';
+    item.element.style.boxShadow = '0 0 34px rgba(86,221,190,.36)';
+    clearTimeout(highlightTimer);
+    highlightTimer = setTimeout(clearHighlight, 6000);
+    if (typeof config.onNavigate === 'function') {
+      try { Promise.resolve(config.onNavigate(item.key, item.element)).catch((error) => console.warn('Nova onNavigate callback failed:', error)); }
+      catch (error) { console.warn('Nova onNavigate callback failed:', error); }
+    }
+    return { text: item.description, gesture: 'point', target: item.key };
+  }
+
   async function answer(question) {
     const items = targets();
     const match = matchTarget(question, items);
-    if (match) {
-      match.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      clearHighlight();
-      highlighted = {
-        element: match.element,
-        outline: match.element.style.outline,
-        outlineOffset: match.element.style.outlineOffset,
-        boxShadow: match.element.style.boxShadow
-      };
-      match.element.style.outline = '3px solid #8ef6d9';
-      match.element.style.outlineOffset = '6px';
-      match.element.style.boxShadow = '0 0 34px rgba(86,221,190,.36)';
-      clearTimeout(highlightTimer);
-      highlightTimer = setTimeout(clearHighlight, 6000);
-      return { text: match.description, gesture: 'point', target: match.key };
-    }
+    if (match) return navigateTo(match);
     if (/\b(wave|hello|hi)\b/i.test(question)) return { text: 'Hi! I can guide you around this page.', gesture: 'wave' };
     if (/\b(dance|celebrate)\b/i.test(question)) return { text: 'A little celebration for us!', gesture: 'dance' };
     if (typeof config.onQuestion === 'function') {
@@ -122,6 +128,13 @@
       if (!question) return;
       try { send('reply', { ...await answer(question) }); }
       catch (error) { console.warn('Nova embed response failed:', error); send('reply', { text: 'I could not answer that right now. Please try again.' }); }
+    } else if (event.data.type === 'navigate') {
+      const key = typeof event.data.key === 'string' ? event.data.key : '';
+      const item = targets().find((target) => target.key === key);
+      send('navigated', item ? navigateTo(item) : { text: 'That destination is no longer on this page.', gesture: 'wave' });
+    } else if (event.data.type === 'clearHighlight') {
+      clearTimeout(highlightTimer);
+      clearHighlight();
     } else if (event.data.type === 'size') {
       compact = event.data.compact === true;
       sizeFrame();

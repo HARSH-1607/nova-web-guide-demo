@@ -18,6 +18,8 @@
   <section class="panel" aria-label="Chat with Nova">
     <div class="panel-heading"><span class="status-dot" aria-hidden="true"></span><div><strong>Nova</strong><small id="status">Ready to guide</small></div><button id="soundToggle" type="button" aria-label="Turn voice off" title="Toggle voice">♫</button><button id="collapse" type="button" aria-label="Minimize Nova" title="Minimize Nova">−</button></div>
     <div id="messages" class="messages" role="log" aria-live="polite"></div>
+    <div class="tour-start-row"><button id="startTour" type="button">Take a tour <span aria-hidden="true">→</span></button><span id="tourHint">Explore this site with Nova</span></div>
+    <div id="tourControls" class="tour-controls" hidden><button id="tourPrevious" type="button" aria-label="Previous tour stop">←</button><span id="tourProgress" aria-live="polite"></span><button id="tourNext" type="button" aria-label="Next tour stop">Next →</button><button id="tourExit" type="button" aria-label="End tour">×</button></div>
     <div id="prompts" class="prompts" aria-label="Suggested destinations"></div>
     <form id="questionForm" class="question-form"><label for="question">Ask Nova</label><div><input id="question" type="text" maxlength="500" autocomplete="off" placeholder="Show me around…" required><button id="send" type="submit" aria-label="Send message">↗</button></div></form>
   </section>

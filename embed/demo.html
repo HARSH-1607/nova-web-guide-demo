@@ -11,11 +11,12 @@
 <body>
   <header><strong>Sample Shop</strong><nav><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#contact">Contact</a></nav></header>
   <main>
-    <section id="home" data-nova-guide="home" data-nova-description="Welcome to the sample shop. Nova is running as an embedded widget, separate from the website's own code."><h1>A guide for any website.</h1><p>This is a separate sample page. Ask Nova to show pricing, features, or contact.</p></section>
+    <section id="home" data-nova-guide="home" data-nova-description="Welcome to the sample shop. Nova is running as an embedded widget, separate from the website's own code."><h1>A guide for any website.</h1><p>This is a separate sample page. Ask Nova to show pricing, features, or contact—or take the guided tour.</p></section>
     <section id="features" data-nova-guide="features" data-nova-description="These are the sample shop's features. Nova found and highlighted this section without knowing its layout in advance."><h2>Features</h2><div class="card">A simple, independent host page</div></section>
     <section id="pricing" data-nova-guide="pricing" data-nova-aliases="plans,cost" data-nova-description="Here are the sample plans. Pricing on this page is illustrative, not a live offer."><h2>Pricing</h2><div class="card">Starter · Growth · Enterprise</div></section>
     <section id="contact" data-nova-guide="contact" data-nova-description="This is the sample contact section. Add your real form or email address here when embedding Nova on your own website."><h2>Contact</h2><div class="card">hello@example.com</div></section>
   </main>
+  <script>window.NovaEmbedConfig = { onNavigate(key) { document.body.dataset.lastNovaStop = key; } };</script>
   <script src="nova-embed.js"></script>
 </body>
 </html>
