@@ -205,10 +205,23 @@
     return null;
   }
 
+  const gestureResponses = {
+    wave: 'Hello! Here is a wave.', nod: 'Yes, I am listening.',
+    shake: 'Not quite. Let us try another way.', think: 'Hmm. Let me think about that.',
+    fistBump: 'Fist bump! We make a good team.', jump: 'Here we go!',
+    dance: 'Let me show you my dance.', joy: 'Let us celebrate!'
+  };
+
   function classifyActionRequest(message) {
-    if (/\b(wave|say hi|hello)\b/i.test(message)) return { gesture: 'wave', reply: 'Hello! Here is a wave.' };
-    if (/\b(dance|dancing)\b/i.test(message)) return { gesture: 'dance', reply: 'Let me show you my dance.' };
-    if (/\b(celebrate|joy|happy)\b/i.test(message)) return { gesture: 'joy', reply: 'Let us celebrate!' };
+    const patterns = [
+      ['wave', /\b(wave|say hi|hello)\b/i], ['dance', /\b(dance|dancing)\b/i],
+      ['joy', /\b(celebrate|joy|happy)\b/i], ['nod', /\b(nod|agree with me)\b/i],
+      ['shake', /\b(shake your head|say no|disagree)\b/i],
+      ['fistBump', /\b(fist.?bump|high.?five)\b/i], ['jump', /\b(jump|hop)\b/i],
+      ['think', /\b(think pose|look thoughtful|thinking animation)\b/i]
+    ];
+    const gesture = patterns.find(([, pattern]) => pattern.test(message))?.[0];
+    if (gesture) return { gesture, reply: gestureResponses[gesture] };
     return null;
   }
 
@@ -481,6 +494,7 @@
     askButton.textContent = '…';
     addChatBubble('user', message);
     speechInput.value = '';
+    startGesture('think', true);
     setStatus('Thinking…');
     modelNotice.classList.remove('error');
     const useOnline = aiProvider.value === 'online';
@@ -498,8 +512,10 @@
       conversation.push({ role: 'user', content: message }, { role: 'assistant', content: result.reply });
       conversation = conversation.slice(-8);
       modelNotice.textContent = `Answered by ${result.model} · voice: ${voiceSelect.selectedOptions[0]?.textContent || 'browser'}`;
+      state.gesture = null;
       speak(result.reply, wasGuiding);
     } catch (error) {
+      state.gesture = null;
       const detail = error.message || 'Could not contact the AI.';
       addChatBubble('assistant', `I could not answer: ${detail}`);
       modelNotice.classList.add('error');
@@ -700,13 +716,15 @@
   }
 
   function startGesture(type, keepSpeech = false) {
-    const duration = { point: 2200, wave: 2500, dance: 4000, joy: 2400 }[type];
+    const duration = { point: 2200, wave: 2500, dance: 4000, joy: 2400,
+      nod: 1900, shake: 1900, think: 2300, fistBump: 1700, jump: 2000 }[type];
     if (!duration) return;
     if (!keepSpeech) cancelSpeech();
     state.destination = null;
     state.onArrival = null;
     state.gesture = { type, started: performance.now(), duration };
-    setStatus({ point: 'Pointing', wave: 'Waving', dance: 'Dancing', joy: 'Feeling joyful' }[type]);
+    setStatus({ point: 'Pointing', wave: 'Waving', dance: 'Dancing', joy: 'Feeling joyful',
+      nod: 'Nodding', shake: 'Shaking my head', think: 'Thinking', fistBump: 'Fist bump', jump: 'Jumping' }[type]);
   }
 
   function vowelFrame(character) {
@@ -994,6 +1012,17 @@
     button.addEventListener('click', () => {
       speechInput.value = button.dataset.welcomePrompt;
       askAI();
+    });
+  });
+  document.querySelectorAll('[data-avatar-gesture]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const type = button.dataset.avatarGesture;
+      const reply = gestureResponses[type];
+      if (!reply) return;
+      if (state.guide) endGuide(false);
+      startGesture(type, true);
+      addChatBubble('assistant', reply);
+      speak(reply, true);
     });
   });
   window.addEventListener('nova:scene-request', (event) => {

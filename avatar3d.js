@@ -167,8 +167,10 @@ try {
     lastTime = now;
     const blend = 1 - Math.exp(-delta * 10);
     const t = now / 1000;
+    actor.dataset.gesture = pose.gesture?.type || 'idle';
     if (robot) {
       robot.sync(pose, now, delta);
+      actor.dataset.animation = robot.activeAnimation;
       updateSize();
       renderer.render(scene, camera);
       return;
@@ -213,6 +215,23 @@ try {
       leftElbow = -0.22;
       rightElbow = 0.22;
       bob = 0.08 * Math.sin(gestureTime * 7);
+    } else if (gesture === 'nod') {
+      sway = 0.012 * Math.sin(gestureTime * 6);
+    } else if (gesture === 'shake') {
+      sway = 0.025 * Math.sin(gestureTime * 5);
+    } else if (gesture === 'think') {
+      leftArm = -0.32;
+      rightArm = 0.85;
+      rightElbow = 0.7;
+      sway = -0.025;
+    } else if (gesture === 'fistBump') {
+      rightArm = 1.4;
+      rightElbow = -0.55;
+      bob = 0.03 * Math.sin(gestureTime * 8);
+    } else if (gesture === 'jump') {
+      leftArm = -1.3;
+      rightArm = 1.3;
+      bob = 0.12 * Math.sin(gestureTime * 7);
     }
 
     arms[0].rotation.z = smooth(arms[0].rotation.z, leftArm, blend);
@@ -227,8 +246,8 @@ try {
     body.position.y = smooth(body.position.y, bob, blend);
     body.scale.y = smooth(body.scale.y, 1 + 0.012 * Math.sin(t * 1.6), blend);
     head.rotation.z = smooth(head.rotation.z, -sway * 0.6 + 0.025 * Math.sin(t * 0.9), blend);
-    head.rotation.x = smooth(head.rotation.x, 0.025 * Math.sin(t * 1.3) + (pose.gaze?.y || 0) * 0.16, blend);
-    head.rotation.y = smooth(head.rotation.y, (pose.gaze?.x || 0) * 0.27, blend);
+    head.rotation.x = smooth(head.rotation.x, 0.025 * Math.sin(t * 1.3) + (pose.gaze?.y || 0) * 0.16 + (gesture === 'nod' ? 0.12 * Math.sin(gestureTime * 7) : gesture === 'think' ? 0.08 : 0), blend);
+    head.rotation.y = smooth(head.rotation.y, (pose.gaze?.x || 0) * 0.27 + (gesture === 'shake' ? 0.19 * Math.sin(gestureTime * 6) : gesture === 'think' ? 0.14 : 0), blend);
     character.rotation.y = smooth(character.rotation.y, walking ? (pose.direction >= 0 ? 0.23 : -0.23) : 0.08, blend);
 
     const mouthShapes = [

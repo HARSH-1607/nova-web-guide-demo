@@ -19,8 +19,11 @@
   const tourNext = document.getElementById('tourNext');
   const tourExit = document.getElementById('tourExit');
   const tourProgress = document.getElementById('tourProgress');
+  const reactionToggle = document.getElementById('reactionToggle');
+  const reactionChoices = document.getElementById('reactionChoices');
   let voiceEnabled = true;
   let speakingUntil = 0;
+  let speechVersion = 0;
   let gesture = null;
   let nextBlink = performance.now() + 3000;
   let blinkUntil = 0;
@@ -28,6 +31,19 @@
   let pending = false;
   let destinations = [];
   let tourIndex = -1;
+  let nextIdleGesture = performance.now() + 11000;
+  let actorClicks = 0;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reactions = {
+    wave: ['Hello there! Give me a question or take the tour.', 2500],
+    nod: ['Yes, I am listening.', 1900],
+    shake: ['Not quite. Let us try another way.', 1900],
+    think: ['Hmm. Ask me about a section and I will find it.', 2300],
+    fistBump: ['Fist bump! We make a good team.', 1700],
+    jump: ['Here we go!', 2000],
+    dance: ['A little dance for you!', 4200],
+    joy: ['That is worth celebrating!', 2400]
+  };
 
   function post(type, extra = {}) {
     parent.postMessage({ novaChannel: channel, type, ...extra }, '*');
@@ -44,9 +60,21 @@
 
   function startGesture(type, duration = 2300) {
     gesture = { type, started: performance.now(), duration };
+    nextIdleGesture = performance.now() + duration + 11000 + Math.random() * 5000;
+  }
+
+  function react(type) {
+    const [line, duration] = reactions[type] || reactions.wave;
+    startGesture(type, duration);
+    bubble('nova', line);
+    status.textContent = 'Speaking…';
+    speak(line);
+    reactionChoices.hidden = true;
+    reactionToggle.setAttribute('aria-expanded', 'false');
   }
 
   function speak(message) {
+    const version = ++speechVersion;
     if (!voiceEnabled || !('speechSynthesis' in window)) {
       speakingUntil = performance.now() + Math.min(10000, Math.max(1600, message.length * 52));
       return;
@@ -59,8 +87,8 @@
     utterance.voice = voices.find((voice) => /\b(aria|jenny|zira|ava|samantha|victoria|sonia|female)\b/i.test(voice.name) && /^en/i.test(voice.lang))
       || voices.find((voice) => /^en/i.test(voice.lang)) || null;
     speakingUntil = performance.now() + Math.min(15000, Math.max(1800, message.length * 65));
-    utterance.onend = () => { speakingUntil = 0; status.textContent = 'Ready to guide'; };
-    utterance.onerror = () => { speakingUntil = 0; status.textContent = 'Ready to guide'; };
+    utterance.onend = () => { if (version === speechVersion) { speakingUntil = 0; status.textContent = 'Ready to guide'; } };
+    utterance.onerror = () => { if (version === speechVersion) { speakingUntil = 0; status.textContent = 'Ready to guide'; } };
     speechSynthesis.speak(utterance);
   }
 
@@ -70,6 +98,7 @@
     sendButton.disabled = true;
     input.value = '';
     bubble('visitor', question);
+    startGesture('think', 15000);
     status.textContent = 'Thinking…';
     post('question', { question });
   }
@@ -115,13 +144,20 @@
     } else visitTour(tourIndex + 1);
   });
   tourExit.addEventListener('click', endTour);
+  reactionToggle.addEventListener('click', () => {
+    reactionChoices.hidden = !reactionChoices.hidden;
+    reactionToggle.setAttribute('aria-expanded', String(!reactionChoices.hidden));
+  });
+  reactionChoices.querySelectorAll('[data-gesture]').forEach((button) => {
+    button.addEventListener('click', () => react(button.dataset.gesture));
+  });
 
   form.addEventListener('submit', (event) => { event.preventDefault(); ask(input.value.trim()); });
   soundToggle.addEventListener('click', () => {
     voiceEnabled = !voiceEnabled;
     soundToggle.textContent = voiceEnabled ? '♫' : '♪̸';
     soundToggle.setAttribute('aria-label', voiceEnabled ? 'Turn voice off' : 'Turn voice on');
-    if (!voiceEnabled) window.speechSynthesis?.cancel();
+    if (!voiceEnabled) { speechVersion++; speakingUntil = 0; window.speechSynthesis?.cancel(); }
   });
   collapse.addEventListener('click', () => {
     document.body.classList.add('compact');
@@ -133,11 +169,12 @@
     restore.hidden = true;
     post('size', { compact: false });
   });
-  actor.addEventListener('click', () => { startGesture('wave'); bubble('nova', 'Hi! Ask me to show you a part of this site.'); });
+  actor.addEventListener('click', () => { react(['wave', 'nod', 'joy', 'think'][actorClicks++ % 4]); });
   actor.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); actor.click(); } });
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') collapse.click(); });
   window.addEventListener('pointermove', (event) => {
     pointer = { x: (event.clientX - innerWidth * 0.5) / innerWidth, y: (event.clientY - innerHeight * 0.35) / innerHeight };
+    actor.dataset.gazeSource = 'widget';
   }, { passive: true });
 
   window.addEventListener('message', (event) => {
@@ -165,8 +202,12 @@
       const reply = typeof event.data.text === 'string' ? event.data.text.slice(0, 1000) : 'I could not answer that.';
       bubble('nova', reply);
       status.textContent = 'Speaking…';
-      startGesture(['wave', 'dance', 'joy', 'point'].includes(event.data.gesture) ? event.data.gesture : 'point', 2500);
+      startGesture(['wave', 'dance', 'joy', 'point', 'nod', 'shake', 'think', 'fistBump', 'jump'].includes(event.data.gesture) ? event.data.gesture : 'point', 2500);
       speak(reply);
+    } else if (event.data.type === 'pointer') {
+      pointer = Number.isFinite(event.data.x) && Number.isFinite(event.data.y)
+        ? { x: Math.max(-1, Math.min(1, event.data.x)), y: Math.max(-1, Math.min(1, event.data.y)) } : null;
+      actor.dataset.gazeSource = pointer ? 'host' : 'idle';
     }
   });
 
@@ -174,6 +215,9 @@
     if (now > nextBlink) { blinkUntil = now + 150; nextBlink = now + 2800 + Math.random() * 2800; }
     if (gesture && now - gesture.started > gesture.duration) gesture = null;
     const talking = now < speakingUntil;
+    if (!reducedMotion && !gesture && !talking && !pending && now > nextIdleGesture) {
+      startGesture(Math.random() < 0.55 ? 'nod' : 'think', 1500);
+    }
     if (talking) status.textContent = 'Speaking…';
     else if (!pending) status.textContent = 'Ready to guide';
     window.Nova3D?.sync({

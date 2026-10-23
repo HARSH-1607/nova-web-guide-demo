@@ -19,6 +19,22 @@
     frame.style.height = compact ? '68px' : innerWidth < 600 ? 'min(470px,calc(100vh - 16px))' : 'min(560px,100vh)';
   }
   sizeFrame();
+  let pointerFrame = 0;
+  let latestPointer = null;
+  function onPointerMove(event) {
+    latestPointer = { x: event.clientX, y: event.clientY };
+    if (pointerFrame || frame.hidden || compact) return;
+    pointerFrame = requestAnimationFrame(() => {
+      pointerFrame = 0;
+      if (!latestPointer || frame.hidden || compact) return;
+      const bounds = frame.getBoundingClientRect();
+      send('pointer', {
+        x: (latestPointer.x - bounds.left - bounds.width / 2) / Math.max(180, bounds.width / 2),
+        y: (latestPointer.y - bounds.top - bounds.height * 0.37) / Math.max(180, bounds.height / 2)
+      });
+    });
+  }
+  function onBlur() { send('pointer'); }
 
   let highlighted = null;
   let highlightTimer = 0;
@@ -110,6 +126,11 @@
     if (match) return navigateTo(match);
     if (/\b(wave|hello|hi)\b/i.test(question)) return { text: 'Hi! I can guide you around this page.', gesture: 'wave' };
     if (/\b(dance|celebrate)\b/i.test(question)) return { text: 'A little celebration for us!', gesture: 'dance' };
+    if (/\b(nod|agree)\b/i.test(question)) return { text: 'Yes, I am with you!', gesture: 'nod' };
+    if (/\b(shake your head|say no|disagree)\b/i.test(question)) return { text: 'Not quite. Let us look at it another way.', gesture: 'shake' };
+    if (/\b(fist.?bump|high.?five)\b/i.test(question)) return { text: 'Fist bump! We make a good team.', gesture: 'fistBump' };
+    if (/\b(jump|hop)\b/i.test(question)) return { text: 'Here we go!', gesture: 'jump' };
+    if (/\b(think pose|look thoughtful|thinking animation)\b/i.test(question)) return { text: 'Let me think about that.', gesture: 'think' };
     if (typeof config.onQuestion === 'function') {
       const custom = await config.onQuestion(question, items.map(({ key, label, description }) => ({ key, label, description })));
       if (typeof custom === 'string') return { text: custom.slice(0, 1000), gesture: 'point' };
@@ -143,11 +164,13 @@
 
   window.addEventListener('message', onMessage);
   window.addEventListener('resize', sizeFrame);
+  window.addEventListener('pointermove', onPointerMove, { passive: true });
+  window.addEventListener('blur', onBlur);
   (document.body || document.documentElement).append(frame);
   window.NovaEmbed = {
     show() { frame.hidden = false; },
     hide() { frame.hidden = true; },
     refreshTargets() { send('init', { siteTitle: document.title.slice(0, 100), targets: targets().map(({ key, label }) => ({ key, label })) }); },
-    destroy() { clearTimeout(highlightTimer); clearHighlight(); window.removeEventListener('message', onMessage); window.removeEventListener('resize', sizeFrame); frame.remove(); delete window.NovaEmbed; }
+    destroy() { clearTimeout(highlightTimer); clearHighlight(); cancelAnimationFrame(pointerFrame); window.removeEventListener('message', onMessage); window.removeEventListener('resize', sizeFrame); window.removeEventListener('pointermove', onPointerMove); window.removeEventListener('blur', onBlur); frame.remove(); delete window.NovaEmbed; }
   };
 })();

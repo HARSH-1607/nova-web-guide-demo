@@ -15,6 +15,19 @@
     <span class="fallback-character" aria-hidden="true">✦</span>
     <canvas id="avatar3dCanvas" aria-hidden="true"></canvas>
   </div>
+  <div class="reaction-menu" aria-label="Nova's moves">
+    <div id="reactionChoices" class="reaction-choices" hidden>
+      <button type="button" data-gesture="wave">👋 Wave</button>
+      <button type="button" data-gesture="nod">✓ Nod</button>
+      <button type="button" data-gesture="shake">↔ Shake</button>
+      <button type="button" data-gesture="think">◇ Think</button>
+      <button type="button" data-gesture="fistBump">✊ Bump</button>
+      <button type="button" data-gesture="jump">↥ Jump</button>
+      <button type="button" data-gesture="dance">♫ Dance</button>
+      <button type="button" data-gesture="joy">✦ Cheer</button>
+    </div>
+    <button id="reactionToggle" type="button" aria-expanded="false" aria-controls="reactionChoices">✦ Moves</button>
+  </div>
   <section class="panel" aria-label="Chat with Nova">
     <div class="panel-heading"><span class="status-dot" aria-hidden="true"></span><div><strong>Nova</strong><small id="status">Ready to guide</small></div><button id="soundToggle" type="button" aria-label="Turn voice off" title="Toggle voice">♫</button><button id="collapse" type="button" aria-label="Minimize Nova" title="Minimize Nova">−</button></div>
     <div id="messages" class="messages" role="log" aria-live="polite"></div>

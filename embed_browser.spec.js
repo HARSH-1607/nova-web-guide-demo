@@ -78,6 +78,18 @@ async function main() {
     await waitFor('document.querySelector("iframe")?.contentDocument?.querySelector("#messages")?.textContent.includes("Nova")', 'Widget greeting');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.model === "RobotExpressive"', 'Rigged model');
     assert.equal(await evaluate('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.renderer'), 'three');
+    await evaluate('window.dispatchEvent(new PointerEvent("pointermove",{clientX:60,clientY:100}))');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.gazeSource === "host"', 'Host cursor gaze');
+    await evaluate('document.querySelector("iframe").contentDocument.querySelector("#reactionToggle").click()');
+    await evaluate('document.querySelector("iframe").contentDocument.querySelector("[data-gesture=nod]").click()');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.animation === "Yes"', 'Nod animation');
+    await evaluate('document.querySelector("iframe").contentDocument.querySelector("#reactionToggle").click()');
+    await evaluate('document.querySelector("iframe").contentDocument.querySelector("[data-gesture=fistBump]").click()');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.animation === "Punch"', 'Fist-bump animation');
+    for (const [move, clip] of [['shake', 'No'], ['think', 'Idle'], ['jump', 'Jump'], ['dance', 'Dance'], ['joy', 'Jump'], ['wave', 'Wave']]) {
+      await evaluate(`document.querySelector("iframe").contentDocument.querySelector("#reactionToggle").click();document.querySelector("iframe").contentDocument.querySelector("[data-gesture=${move}]").click()`);
+      await waitFor(`document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.animation === "${clip}"`, `${move} animation`);
+    }
     await evaluate('const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="show pricing";doc.querySelector("#questionForm").requestSubmit()');
     await waitFor('document.querySelector("#pricing").style.outline.includes("solid")', 'Host section highlight');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("sample plans")', 'Widget reply');
@@ -92,6 +104,7 @@ async function main() {
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("#tourExit").click()');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#tourControls").hidden', 'Tour exit');
     if (process.env.CAPTURE_EMBED === '1') {
+      if (process.env.CAPTURE_MOVES === '1') await evaluate('document.querySelector("iframe").contentDocument.querySelector("#reactionToggle").click()');
       console.log('Widget layout:', await evaluate('(()=>{const p=document.querySelector("iframe").contentDocument.querySelector(".panel");return {height:p.clientHeight,scrollHeight:p.scrollHeight,maxHeight:getComputedStyle(p).maxHeight}})()'));
       const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
       const output = path.join(os.tmpdir(), 'nova-embed-preview.png');
@@ -106,7 +119,19 @@ async function main() {
     await waitFor('document.querySelector("iframe").style.width === "68px"', 'Widget minimize');
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("#restore").click()');
     await waitFor('document.querySelector("iframe").style.width !== "68px"', 'Widget restore');
-    console.log('Embed browser test passed: 3D model, chat, host navigation, and widget controls.');
+    await evaluate('const rootTest=document.createElement("iframe");rootTest.id="rootTest";rootTest.src="/";document.body.append(rootTest)');
+    await waitFor('document.querySelector("#rootTest")?.contentDocument?.querySelector("#avatarActor")?.dataset.model === "RobotExpressive"', 'Starter page model');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-avatar-gesture=nod]").click()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#avatarActor").dataset.animation === "Yes"', 'Starter page nod');
+    if (process.env.CAPTURE_STARTER === '1') {
+      await send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+      await waitFor('document.querySelector("#avatarActor")?.dataset.model === "RobotExpressive"', 'Starter page preview');
+      const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+      const output = path.join(os.tmpdir(), 'nova-starter-preview.png');
+      fs.writeFileSync(output, Buffer.from(screenshot.data, 'base64'));
+      console.log(`Starter screenshot: ${output}`);
+    }
+    console.log('Browser test passed: both pages load the rigged model, reactions, cursor gaze, chat, tour, and widget controls.');
   } finally {
     socket?.close();
     chrome?.kill();

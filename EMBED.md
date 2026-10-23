@@ -16,6 +16,7 @@ The script creates one fixed, transparent iframe in the lower-right corner. It s
 
 Visitors can minimize the guide to a small floating button and reopen it. On narrow screens, the character and chat panel scale down to leave more room for the host page.
 The **Take a tour** button walks through up to 12 discovered destinations, one stop at a time. Visitors can go back, advance, or exit without losing access to the site. Pressing Escape minimizes the guide.
+The **Moves** menu lets visitors trigger Wave, Nod, Shake, Think, Bump, Jump, Dance, and Cheer. Clicking the character cycles through a few friendly reactions. Nova takes a thinking pose while awaiting a chat answer. The rig follows the pointer across the host page, not just inside the widget. Short idle glances and occasional nods make Nova feel less static; browsers requesting reduced motion skip those automatic gestures.
 
 Mark useful destinations with descriptions:
 
