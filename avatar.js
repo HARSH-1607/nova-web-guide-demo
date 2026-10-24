@@ -284,7 +284,7 @@
     const panel = document.querySelector('.control-panel').getBoundingClientRect();
     return {
       x: Math.max(0, (window.innerWidth - size.width) / 2),
-      y: Math.max(window.innerWidth <= 600 ? 175 : window.innerHeight < 680 ? 90 : 135, panel.top - size.height - 12)
+      y: Math.max(window.innerWidth <= 600 ? 175 : window.innerHeight < 680 ? 120 : 135, panel.top - size.height - 12)
     };
   }
 

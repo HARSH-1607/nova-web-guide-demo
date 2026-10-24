@@ -1,4 +1,5 @@
 import * as THREE from './vendor/three.module.js';
+import { loadDrokAvatar } from './drok-avatar.js';
 import { loadRobotAvatar } from './robot-avatar.js';
 
 const actor = document.getElementById('avatarActor');
@@ -61,15 +62,25 @@ try {
   character.name = 'Nova3D';
   character.position.y = 0.17;
   scene.add(character);
-  let robot = null;
-  loadRobotAvatar(scene).then((loaded) => {
-    robot = loaded;
+  let modelController = null;
+  loadDrokAvatar(scene).then((loaded) => {
+    modelController = loaded;
     character.visible = false;
-    actor.dataset.model = 'RobotExpressive';
-    actor.dataset.headTracking = loaded.hasHeadBone ? 'rig' : 'unavailable';
+    actor.dataset.model = 'Drok';
+    actor.dataset.headTracking = 'body';
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.35;
   }).catch((error) => {
-    console.warn('Rigged robot could not load; retaining the procedural avatar.', error);
-    actor.dataset.model = 'procedural-fallback';
+    console.warn('Drok could not load; trying the previous robot model.', error);
+    loadRobotAvatar(scene).then((loaded) => {
+      modelController = loaded;
+      character.visible = false;
+      actor.dataset.model = 'RobotExpressive';
+      actor.dataset.headTracking = loaded.hasHeadBone ? 'rig' : 'unavailable';
+    }).catch((fallbackError) => {
+      console.warn('No rigged avatar could load; retaining the procedural avatar.', fallbackError);
+      actor.dataset.model = 'procedural-fallback';
+    });
   });
   const body = new THREE.Group();
   character.add(body);
@@ -158,6 +169,7 @@ try {
       || canvas.height !== Math.round(height * renderer.getPixelRatio())) {
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
+      camera.position.z = camera.aspect >= 0.9 ? 6.7 : 7.8;
       camera.updateProjectionMatrix();
     }
   }
@@ -168,9 +180,9 @@ try {
     const blend = 1 - Math.exp(-delta * 10);
     const t = now / 1000;
     actor.dataset.gesture = pose.gesture?.type || 'idle';
-    if (robot) {
-      robot.sync(pose, now, delta);
-      actor.dataset.animation = robot.activeAnimation;
+    if (modelController) {
+      modelController.sync(pose, now, delta);
+      actor.dataset.animation = modelController.activeAnimation;
       updateSize();
       renderer.render(scene, camera);
       return;

@@ -33,15 +33,17 @@ async function main() {
     assert.equal((await fetch(`${base}/api/online/status`)).status, 401, 'Protected API became public');
     for (const file of [
       '/embed/nova-embed.js', '/embed/frame.html', '/embed/frame.css', '/embed/frame.js', '/embed/demo.html',
-      '/avatar3d.js', '/robot-avatar.js', '/vendor/three.module.js',
+      '/avatar3d.js', '/drok-avatar.js', '/robot-avatar.js', '/vendor/three.module.js',
       '/vendor/examples/jsm/loaders/GLTFLoader.js', '/vendor/examples/jsm/utils/BufferGeometryUtils.js',
-      '/vendor/examples/jsm/utils/SkeletonUtils.js', '/models/RobotExpressive.glb'
+      '/vendor/examples/jsm/utils/SkeletonUtils.js', '/models/Drok_Web_Avatar.glb', '/models/RobotExpressive.glb'
     ]) {
       const response = await fetch(`${base}${file}`);
       assert.equal(response.status, 200, `${file} should be embeddable without demo credentials`);
     }
     const model = await fetch(`${base}/models/RobotExpressive.glb`);
     assert.equal(model.headers.get('content-type'), 'model/gltf-binary');
+    const drok = await fetch(`${base}/models/Drok_Web_Avatar.glb`);
+    assert.equal(drok.headers.get('content-type'), 'model/gltf-binary');
     assert.equal((await fetch(`${base}/embed/../run_test_server.js`)).status, 401);
     console.log('Embed asset and private-route tests passed.');
   } finally { child.kill(); }

@@ -1,6 +1,6 @@
 # Add Nova to another website
 
-Nova can now run as an isolated 3D guide on a separate site. The widget uses the same rigged RobotExpressive character, voice fallback, gestures, and approximate speech motion as the demo. It does **not** require Unity or a WebGL build.
+Nova can now run as an isolated 3D guide on a separate site. The widget uses the Blender-made Drok character from this project, voice fallback, gestures, and approximate vowel-driven mouth motion. The previous RobotExpressive character remains a loading fallback. It does **not** require Unity or a WebGL build.
 
 For a first test, open `/embed/demo.html` on the Nova server. The demo website itself is unrelated to Aura.
 
