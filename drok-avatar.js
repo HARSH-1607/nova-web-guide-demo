@@ -128,6 +128,10 @@ export async function loadDrokAvatar(scene) {
       const gesture = pose.gesture?.type || null;
       const talking = pose.speechFrame != null;
       const state = gesture === 'think' ? 'thinking'
+        : gesture === 'curious' ? 'mischievous'
+          : gesture === 'bow' ? 'nod'
+            : gesture === 'spin' ? 'dance'
+              : gesture === 'peek' ? 'listening'
         : actions.has(gesture) ? gesture
           : pose.walking ? 'listening' : talking ? 'talking' : 'idle';
       play(state);
@@ -154,6 +158,7 @@ export async function loadDrokAvatar(scene) {
 
       blinkBlend = THREE.MathUtils.lerp(blinkBlend, pose.blink ? 1 : 0, 1 - Math.exp(-delta * 32));
       const browTarget = gesture === 'think' ? -0.065
+        : gesture === 'curious' || gesture === 'peek' ? 0.075
         : ['joy', 'happy', 'wave', 'dance'].includes(gesture) ? 0.055
           : talking ? 0.018 : 0;
       browBlend = THREE.MathUtils.lerp(browBlend, browTarget, 1 - Math.exp(-delta * 8));
@@ -163,6 +168,8 @@ export async function loadDrokAvatar(scene) {
       });
 
       const elapsed = gesture ? Math.max(0, (now - pose.gesture.started) / 1000) : 0;
+      const progress = gesture ? THREE.MathUtils.clamp(elapsed / (pose.gesture.duration / 1000), 0, 1) : 0;
+      const envelope = gesture ? Math.sin(Math.PI * progress) ** 2 : 0;
       const gazeX = pose.gaze?.x || 0;
       const gazeY = pose.gaze?.y || 0;
       let roll = 0;
@@ -171,13 +178,19 @@ export async function loadDrokAvatar(scene) {
       let bob = 0.012 * Math.sin(now * 0.0016);
       if (pose.walking) { roll += 0.06 * Math.sin(elapsed * 5); bob += 0.035 * Math.sin(now * 0.006); }
       if (gesture === 'think') { roll -= 0.025; pitch += 0.04; }
+      if (gesture === 'curious') { roll += 0.12 * envelope; pitch -= 0.07 * envelope; }
+      if (gesture === 'bow') { pitch += 0.28 * envelope; bob -= 0.14 * envelope; }
+      if (gesture === 'peek') { yaw += 0.3 * envelope; roll -= 0.09 * envelope; }
+      if (gesture === 'spin') { yaw += Math.PI * 2 * (progress * progress * (3 - 2 * progress)); bob += 0.08 * envelope; }
       const blend = 1 - Math.exp(-delta * 9);
       pivot.rotation.set(
         THREE.MathUtils.lerp(pivot.rotation.x, pitch, blend),
-        THREE.MathUtils.lerp(pivot.rotation.y, yaw, blend),
+        gesture === 'spin' ? yaw : THREE.MathUtils.lerp(pivot.rotation.y, yaw, blend),
         THREE.MathUtils.lerp(pivot.rotation.z, roll, blend)
       );
       pivot.position.y = THREE.MathUtils.lerp(pivot.position.y, 1.65 + bob, blend);
+      const breath = reducedMotion ? 1 : 1 + Math.sin(now * 0.0017) * 0.004;
+      pivot.scale.set(breath, breath * (1 + 0.003 * Math.sin(now * 0.0021)), breath);
     }
   };
 }

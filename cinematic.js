@@ -22,9 +22,9 @@
     title.textContent = scene.dataset.sceneTitle;
     count.textContent = `${scene.dataset.sceneNumber} / ${String(scenes.length).padStart(2, '0')}`;
     progress.style.width = `${(safe + 1) / scenes.length * 100}%`;
-    navLabel.textContent = `${scene.dataset.sceneNumber} / ${scene.dataset.sceneTitle}`;
-    previous.disabled = safe === 0;
-    next.disabled = safe === scenes.length - 1;
+    if (navLabel) navLabel.textContent = `${scene.dataset.sceneNumber} / ${scene.dataset.sceneTitle}`;
+    if (previous) previous.disabled = safe === 0;
+    if (next) next.disabled = safe === scenes.length - 1;
     scene.classList.add('scene-visible');
   }
 
@@ -55,7 +55,7 @@
     requestAnimationFrame(updateFromViewport);
   }
 
-  for (const button of [previous, next]) {
+  for (const button of [previous, next].filter(Boolean)) {
     button.addEventListener('click', () => {
       const direction = button.dataset.sceneNav === 'next' ? 1 : -1;
       const destination = scenes[activeIndex + direction];

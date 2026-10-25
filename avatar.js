@@ -33,7 +33,6 @@
   const modelNotice = document.getElementById('modelNotice');
   const caption = document.getElementById('dorkCaption');
   const listenButton = document.getElementById('listenButton');
-  const panelToggle = document.getElementById('panelToggle');
   const guideHint = document.getElementById('guideHint');
   const skipGuideInline = document.getElementById('skipGuideInline');
   const guideHintText = document.getElementById('guideHintText');
@@ -61,6 +60,13 @@
   let onlineModel = '';
   let providersChecked = false;
   let actorClickCount = 0;
+  let voiceEnabled = false;
+  let recognition = null;
+  let listening = false;
+  let voiceBlocked = false;
+  let voiceRestartTimer = 0;
+  let referencedTarget = null;
+  let referencedAt = 0;
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = 'high';
   const state = {
@@ -77,7 +83,7 @@
     chatRequestController.abort();
     chatRequestController = null;
     chatRequestInFlight = false;
-    listenButton.textContent = '🎙 Speak to Dork';
+    resumeListeningSoon();
   }
   function revealSite() {
     if (!state.intro) return;
@@ -93,11 +99,30 @@
     state.pointer.x = event.clientX;
     state.pointer.y = event.clientY;
     state.pointer.active = true;
+    rememberTarget(event.target);
   }, { passive: true });
+  document.addEventListener('focusin', (event) => rememberTarget(event.target));
+  document.addEventListener('pointerdown', (event) => rememberTarget(event.target), { passive: true });
   window.addEventListener('blur', () => { state.pointer.active = false; });
   document.addEventListener('pointerout', (event) => {
     if (!event.relatedTarget) state.pointer.active = false;
   });
+  function rememberTarget(node) {
+    const target = node?.closest?.('[data-guide-spot], [data-walkthrough-target]');
+    if (target && !target.closest('[hidden]')) {
+      referencedTarget = target;
+      referencedAt = performance.now();
+    }
+  }
+  function referenceTarget() {
+    if (referencedTarget?.isConnected && performance.now() - referencedAt < 30000) return referencedTarget;
+    const focused = document.activeElement?.closest?.('[data-guide-spot], [data-walkthrough-target]');
+    if (focused) return focused;
+    return [...document.querySelectorAll('.cinematic-scene')].find((section) => {
+      const rect = section.getBoundingClientRect();
+      return rect.top < innerHeight * 0.55 && rect.bottom > innerHeight * 0.55;
+    }) || document.querySelector('[data-guide-spot="home"]');
+  }
   function updateVoiceNotice() {
     voiceNotice.textContent = selectedVoice?.name === 'Google UK English Male'
       ? 'Google UK English Male is ready. Speech starts in your browser without audio generation.'
@@ -214,9 +239,14 @@
   function showDorkResponse(message) {
     caption.textContent = message;
     caption.title = message;
+    caption.hidden = false;
     caption.classList.remove('caption-arrive');
     void caption.offsetWidth;
     caption.classList.add('caption-arrive');
+    window.clearTimeout(showDorkResponse.timer);
+    showDorkResponse.timer = window.setTimeout(() => {
+      if (!state.speech) caption.hidden = true;
+    }, Math.min(14000, Math.max(5500, message.length * 95)));
   }
 
   const guideSteps = {
@@ -237,7 +267,9 @@
     wave: 'Hello! Here is a wave.', nod: 'Yes, I am listening.',
     shake: 'Not quite. Let us try another way.', think: 'Hmm. Let me think about that.',
     fistBump: 'Fist bump! We make a good team.', jump: 'Here we go!',
-    dance: 'Let me show you my dance.', joy: 'Let us celebrate!'
+    dance: 'Let me show you my dance.', joy: 'Let us celebrate!',
+    curious: 'Now you have my attention.', bow: 'At your service.',
+    spin: 'Watch this little turn.', peek: 'I see what you are looking at.'
   };
 
   function classifyActionRequest(message) {
@@ -246,7 +278,10 @@
       ['joy', /\b(celebrate|joy|happy)\b/i], ['nod', /\b(nod|agree with me)\b/i],
       ['shake', /\b(shake your head|say no|disagree)\b/i],
       ['fistBump', /\b(fist.?bump|high.?five)\b/i], ['jump', /\b(jump|hop)\b/i],
-      ['think', /\b(think pose|look thoughtful|thinking animation)\b/i]
+      ['think', /\b(think pose|look thoughtful|thinking animation)\b/i],
+      ['curious', /\b(be curious|look curious|curious pose)\b/i],
+      ['bow', /\b(bow|take a bow)\b/i], ['spin', /\b(spin|turn around|twirl)\b/i],
+      ['peek', /\b(peek|look over there)\b/i]
     ];
     const gesture = patterns.find(([, pattern]) => pattern.test(message))?.[0];
     if (gesture) return { gesture, reply: gestureResponses[gesture] };
@@ -303,16 +338,16 @@
 
   function dockPosition() {
     const size = actorSize();
-    const panel = document.querySelector('.control-panel').getBoundingClientRect();
-    return clampPosition(window.innerWidth - size.width - 34, Math.max(14, panel.top - size.height - 10));
+    return clampPosition(window.innerWidth - size.width - 18,
+      window.innerHeight - size.height - (window.innerWidth < 700 ? 64 : 72));
   }
 
   function introPosition() {
     const size = actorSize();
-    const panel = document.querySelector('.control-panel').getBoundingClientRect();
     return {
       x: Math.max(0, (window.innerWidth - size.width) / 2),
-      y: Math.max(window.innerWidth <= 600 ? 175 : window.innerHeight < 680 ? 120 : 135, panel.top - size.height - 12)
+      y: Math.max(window.innerWidth <= 600 ? 150 : 120,
+        Math.min((window.innerHeight - size.height) * 0.54, window.innerHeight - size.height - 120))
     };
   }
 
@@ -320,8 +355,8 @@
     const rect = target.getBoundingClientRect();
     const size = actorSize();
     if (window.innerWidth < 700) {
-      const panel = document.querySelector('.control-panel').getBoundingClientRect();
-      return { x: window.innerWidth - size.width - 12, y: Math.max(8, panel.top - size.height + 12) };
+      return { x: window.innerWidth - size.width - 12,
+        y: Math.max(8, Math.min(rect.top - size.height * 0.4, window.innerHeight - size.height - 70)) };
     }
     const fitsRight = rect.right + size.width + 24 < window.innerWidth;
     return {
@@ -382,7 +417,9 @@
     const guide = { cancelled: false, awaiting: false, targetElement: focus, landmark: true };
     state.guide = guide;
     skipGuideInline.hidden = false;
-    const description = element.dataset.guideDescription || `Here is ${element.dataset.guideSpot}.`;
+    const description = element.dataset.guideDescription || (element.dataset.walkthroughTarget
+      ? `This is the ${element.textContent.trim()} button. You can click it to try this part of the site.`
+      : `Here is ${element.dataset.guideSpot}.`);
     showDorkResponse(description);
     transitionToTarget(element, focus, () => {
       if (state.guide !== guide || guide.cancelled) return;
@@ -488,13 +525,13 @@
     }
     if (/\b(enter|open|explore|browse)\b.*\b(site|website|page)\b/i.test(message)) {
       revealSite();
-      const reply = 'Welcome in! Choose a destination below, or take the guided tour.';
+      const reply = 'Welcome in! Ask me to show any section, or say “show me around” for a tour.';
       showDorkResponse(reply);
       speak(reply, true);
       return;
     }
     if (state.intro && /\b(what can you do|how can you help|what do you do)\b/i.test(message)) {
-      const reply = 'I can guide you to features, pricing, and contact, point out buttons, and show you a tour. Choose a moment below or use voice input if your browser supports it.';
+      const reply = 'I can guide you to features, pricing, and contact, point out buttons, and give you a tour. Point at something and say “show me that.” You can also ask me to wave, dance, or bow.';
       showDorkResponse(reply);
       speak(reply, true);
       startGesture('point', true);
@@ -504,6 +541,14 @@
     if (guideRequest) {
       revealSite();
       beginGuide(guideRequest);
+      return;
+    }
+    if (/\b(show|take|go|explain|tell|what)\b.*\b(that|this|there|here)\b/i.test(message)) {
+      const target = referenceTarget();
+      if (target) {
+        revealSite();
+        showLandmark(target);
+      }
       return;
     }
     const actionRequest = classifyActionRequest(message);
@@ -527,7 +572,7 @@
     const provider = aiProvider.value;
     const useOnline = provider === 'online';
     if (providersChecked && !(provider === 'device' ? onDeviceAvailable : useOnline ? onlineAvailable : localAvailable)) {
-      const help = 'AI answers are unavailable right now. The destination buttons and guided tour still work.';
+      const help = 'AI answers are unavailable right now. You can still ask me to show a section or take a tour.';
       showDorkResponse(help);
       modelNotice.classList.add('error');
       updateProviderNotice();
@@ -538,7 +583,6 @@
     chatRequestInFlight = true;
     const requestController = new AbortController();
     chatRequestController = requestController;
-    listenButton.textContent = 'Stop response';
     startGesture('think', true);
     setStatus('Thinking…');
     modelNotice.classList.remove('error');
@@ -580,19 +624,10 @@
   function actorSize() { return { width: actor.offsetWidth, height: actor.offsetHeight }; }
   function clampPosition(x, y) {
     const { width, height } = actorSize();
-    const position = {
+    return {
       x: Math.max(0, Math.min(window.innerWidth - width, x)),
       y: Math.max(0, Math.min(window.innerHeight - height, y))
     };
-    const panel = document.querySelector('.control-panel').getBoundingClientRect();
-    const overlapsPanel = !(window.innerWidth < 700 && state.guide)
-      && position.x < panel.right && position.x + width > panel.left
-      && position.y < panel.bottom && position.y + height > panel.top;
-    if (overlapsPanel) {
-      if (panel.top - height - 12 >= 0) position.y = panel.top - height - 12;
-      else position.x = Math.max(0, panel.left - width - 12);
-    }
-    return position;
   }
   function placeActor(now = performance.now()) {
     const walking = Boolean(state.destination);
@@ -767,14 +802,16 @@
 
   function startGesture(type, keepSpeech = false) {
     const duration = { point: 2200, wave: 2500, dance: 4000, joy: 2400,
-      nod: 1900, shake: 1900, think: 2300, fistBump: 1700, jump: 2000 }[type];
+      nod: 1900, shake: 1900, think: 2300, fistBump: 1700, jump: 2000,
+      curious: 2600, bow: 2600, spin: 2900, peek: 2500 }[type];
     if (!duration) return;
     if (!keepSpeech) cancelSpeech();
     state.destination = null;
     state.onArrival = null;
     state.gesture = { type, started: performance.now(), duration };
     setStatus({ point: 'Pointing', wave: 'Waving', dance: 'Dancing', joy: 'Feeling joyful',
-      nod: 'Nodding', shake: 'Shaking my head', think: 'Thinking', fistBump: 'Fist bump', jump: 'Jumping' }[type]);
+      nod: 'Nodding', shake: 'Shaking my head', think: 'Thinking', fistBump: 'Fist bump', jump: 'Jumping',
+      curious: 'Curious', bow: 'Bowing', spin: 'Spinning', peek: 'Peeking' }[type]);
   }
 
   function vowelFrame(character) {
@@ -837,6 +874,9 @@
     state.speech = null;
     speech.resolve?.(true);
     if (!state.gesture && !state.destination) setStatus('Ready to guide');
+    window.clearTimeout(showDorkResponse.timer);
+    showDorkResponse.timer = window.setTimeout(() => { caption.hidden = true; }, 2500);
+    resumeListeningSoon();
   }
 
   function cancelSpeech() {
@@ -858,6 +898,39 @@
     if (speech && 'speechSynthesis' in window) window.speechSynthesis.cancel();
   }
 
+  function updateVoiceButton() {
+    listenButton.setAttribute('aria-pressed', String(voiceEnabled));
+    listenButton.setAttribute('aria-label', voiceEnabled ? 'Turn off voice commands' : 'Turn on voice commands');
+    listenButton.title = voiceEnabled ? 'Turn off voice commands' : 'Turn on voice commands';
+    listenButton.classList.toggle('voice-on', voiceEnabled);
+    listenButton.classList.toggle('is-listening', listening);
+  }
+
+  function pauseListening() {
+    window.clearTimeout(voiceRestartTimer);
+    if (listening && recognition) {
+      listening = false;
+      try { recognition.stop(); } catch { /* Recognition may already be ending. */ }
+      updateVoiceButton();
+    }
+  }
+
+  function resumeListeningSoon(delay = 350) {
+    if (!voiceEnabled || !recognition) return;
+    window.clearTimeout(voiceRestartTimer);
+    const startRecognition = () => {
+      if (!voiceEnabled || listening || state.speech || state.pendingSpeech || chatRequestInFlight) return;
+      try {
+        recognition.start();
+        listening = true;
+        setStatus('Listening…');
+        updateVoiceButton();
+      } catch { resumeListeningSoon(1000); }
+    };
+    if (delay <= 0) startRecognition();
+    else voiceRestartTimer = window.setTimeout(startRecognition, delay);
+  }
+
   function createSpeechState(message, alignment = null, audio = null, audioUrl = null) {
     const now = performance.now();
     const mouthCues = [{ characterIndex: 0, frame: 6 }];
@@ -876,6 +949,7 @@
   }
 
   function speakWithBrowser(message) {
+    pauseListening();
     const speech = createSpeechState(message);
     speech.completion = new Promise((resolve) => { speech.resolve = resolve; });
     state.speech = speech;
@@ -902,6 +976,7 @@
   }
 
   async function speakWithNaturalVoice(message, voiceId) {
+    pauseListening();
     const requestController = new AbortController();
     state.pendingSpeech = requestController;
     setStatus('Thinking…');
@@ -1084,57 +1159,49 @@
     open: () => revealSite(),
     startTour: () => { revealSite(); beginGuide('tour'); }
   });
-  panelToggle.addEventListener('click', () => {
-    const minimized = document.querySelector('.control-panel').classList.toggle('is-minimized');
-    panelToggle.setAttribute('aria-expanded', String(!minimized));
-    panelToggle.setAttribute('aria-label', minimized ? 'Show Dork controls' : 'Hide Dork controls');
-    panelToggle.textContent = minimized ? '+' : '−';
-    if (!state.guide && !state.intro) {
-      Object.assign(state, dockPosition());
-      placeActor();
-    }
-  });
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (SpeechRecognition) {
-    const recognition = new SpeechRecognition();
+    recognition = new SpeechRecognition();
     recognition.lang = 'en-GB';
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-    let listening = false;
-    let heardSpeech = false;
-    listenButton.hidden = false;
     listenButton.addEventListener('click', () => {
-      if (chatRequestInFlight) { askAI(''); return; }
-      if (listening) { recognition.stop(); return; }
-      cancelSpeech();
-      heardSpeech = false;
-      try {
-        recognition.start();
-        listening = true;
-        listenButton.textContent = 'Listening… tap to stop';
-        setStatus('Listening…');
-      } catch {
-        setStatus('Voice input unavailable');
-      }
+      voiceEnabled = !voiceEnabled;
+      updateVoiceButton();
+      if (voiceEnabled) resumeListeningSoon(0);
+      else { pauseListening(); setStatus('Voice commands off'); }
     });
     recognition.onresult = (event) => {
       const transcript = event.results?.[0]?.[0]?.transcript?.trim();
       if (!transcript) return;
-      heardSpeech = true;
       listening = false;
-      listenButton.textContent = '🎙 Speak to Dork';
+      try { recognition.stop(); } catch { /* Recognition may already be ending. */ }
+      updateVoiceButton();
+      setStatus(`Heard: ${transcript}`);
       askAI(transcript);
     };
     recognition.onerror = (event) => {
       listening = false;
-      listenButton.textContent = '🎙 Speak to Dork';
-      setStatus(event.error === 'not-allowed' ? 'Microphone access denied' : 'Voice input unavailable');
+      if (['not-allowed', 'service-not-allowed'].includes(event.error)) {
+        voiceEnabled = false;
+        voiceBlocked = true;
+        showDorkResponse('Microphone access is blocked. Allow microphone access in your browser, then try again.');
+        setStatus('Microphone access denied');
+      } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        setStatus('Voice input interrupted');
+      }
+      updateVoiceButton();
     };
     recognition.onend = () => {
       listening = false;
-      listenButton.textContent = chatRequestInFlight ? 'Stop response' : '🎙 Speak to Dork';
-      if (!heardSpeech && status.textContent === 'Listening…') setStatus('Ready to guide');
+      updateVoiceButton();
+      resumeListeningSoon(550);
     };
+  } else {
+    listenButton.disabled = true;
+    listenButton.title = 'Voice commands require a browser with speech recognition';
+    listenButton.setAttribute('aria-label', listenButton.title);
+    document.querySelector('.welcome-copy p').textContent = 'Voice commands are unavailable in this browser. Tap Dork to open the website.';
   }
   document.querySelectorAll('[data-avatar-gesture]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -1168,10 +1235,11 @@
   modelSelect.addEventListener('change', updateProviderNotice);
   document.getElementById('avatarHit').addEventListener('click', () => {
     if (state.guide) return;
-    const reactions = ['wave', 'nod', 'joy', 'dance'];
+    if (state.intro && (!recognition || voiceBlocked)) revealSite();
+    const reactions = ['wave', 'nod', 'joy', 'dance', 'curious', 'bow', 'spin', 'peek'];
     const gesture = reactions[actorClickCount++ % reactions.length];
     const line = state.intro && actorClickCount === 1
-      ? 'Welcome to Aura! Choose Open the site or Take a tour to begin.'
+      ? 'Welcome to Aura! Switch on the microphone and say “show me the site.”'
       : gestureResponses[gesture];
     showDorkResponse(line);
     speak(line, true);
@@ -1194,7 +1262,7 @@
   state.x = initial.x;
   state.y = initial.y;
   state.nextBlink = performance.now() + 2400;
-  showDorkResponse('Welcome to Aura! I’m Dork. Pick a moment to explore with me.');
+  showDorkResponse('Welcome to Aura! I’m Dork. Tap the microphone and say “show me the site.”');
   placeActor();
   requestAnimationFrame(animate);
   renderVoiceOptions();

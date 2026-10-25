@@ -22,7 +22,7 @@
     <div class="welcome-copy">
       <span class="welcome-kicker">AURA PRESENTS &nbsp; / &nbsp; CHAPTER ZERO</span>
       <h1 id="welcomeTitle">A new story <em>starts here.</em></h1>
-      <p>Meet Dork, your guide. Tap a moment below or speak a destination to begin.</p>
+      <p>Meet Dork, your guide. Switch on the microphone, then say “show me the site.”</p>
     </div>
     <span class="welcome-character-label" aria-hidden="true">DORK <span>✦</span> READY WHEN YOU ARE</span>
   </section>
@@ -45,7 +45,7 @@
         <span class="eyebrow">01 / The arrival</span>
         <h1 id="hero-title">A different way to <em>find your way.</em></h1>
         <p>Choose where to go and Dork will move through the site with you—appearing beside the details that matter and pointing out what to try next.</p>
-        <p class="hero-whisper">Use Dork's controls to begin your guided journey.</p>
+        <p class="hero-whisper">Ask Dork to show a section, point to something and say “show me that,” or tap the character for a reaction.</p>
       </div>
       <div class="hero-stage" aria-hidden="true">
         <div class="stage-ring stage-ring-one"></div>
@@ -175,53 +175,20 @@
   <div id="guideHint" class="guide-hint" role="status" aria-live="polite" hidden><span id="guideHintText"></span><button id="skipGuide" type="button">Skip</button></div>
   <svg id="guidePointer" class="guide-pointer" aria-hidden="true" hidden><defs><marker id="guideArrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="none" stroke="currentColor" stroke-width="2"/></marker></defs><line id="guidePointerLine" x1="0" y1="0" x2="0" y2="0" marker-end="url(#guideArrow)"/></svg>
 
-  <aside class="control-panel" aria-label="Character controls">
-    <div class="panel-content">
-    <div class="control-head"><span class="status-light"></span><div><strong>Meet Dork</strong><small id="avatarStatus" aria-live="polite">Loading character…</small></div><button id="panelToggle" type="button" aria-expanded="true" aria-label="Hide Dork controls">−</button></div>
-    <p id="dorkCaption" class="dork-caption" role="status" aria-live="polite"></p>
-    <div class="scene-navigation" aria-label="Navigate with Dork">
-      <span id="sceneNavLabel">01 / The arrival</span>
-      <div><button type="button" data-scene-nav="previous" aria-label="Ask Dork to show the previous scene">←</button><button type="button" data-scene-nav="next" aria-label="Ask Dork to show the next scene">Next scene →</button></div>
-    </div>
-    <button id="skipGuideInline" class="skip-guide-inline" type="button" hidden>Skip this guidance</button>
-    <div class="welcome-prompts" aria-label="Start with Dork">
-      <span>Where should we begin? Tap Dork for a surprise.</span>
-      <div class="welcome-prompt-list">
-        <button type="button" data-welcome-prompt="Enter the website">Open the site <span>↗</span></button>
-        <button type="button" data-welcome-prompt="Show me the site">Take a tour <span>→</span></button>
-        <button type="button" data-welcome-prompt="What can you do?">What can you do? <span>✦</span></button>
-      </div>
-    </div>
-    <div class="site-actions" aria-label="Explore with Dork">
-      <button type="button" data-guide-command="Show me the site">Take a tour <span>↗</span></button>
-      <button type="button" data-guide-command="Show features">Features</button>
-      <button type="button" data-guide-command="Show workflow">Workflow</button>
-      <button type="button" data-guide-command="Show pricing">Pricing</button>
-      <button type="button" data-guide-command="Show contact">Contact</button>
-    </div>
-    <button id="listenButton" class="listen-button" type="button" hidden>🎙 Speak to Dork</button>
-    <details class="movement-lab"><summary>Play with Dork · 8 moves</summary>
-      <div class="control-actions" aria-label="Character reactions">
-        <button type="button" data-avatar-gesture="wave">👋 Wave</button>
-        <button type="button" data-avatar-gesture="nod">✓ Nod</button>
-        <button type="button" data-avatar-gesture="shake">↔ Shake</button>
-        <button type="button" data-avatar-gesture="think">◇ Think</button>
-        <button type="button" data-avatar-gesture="fistBump">✊ Bump</button>
-        <button type="button" data-avatar-gesture="jump">↥ Jump</button>
-        <button type="button" data-avatar-gesture="dance">♫ Dance</button>
-        <button type="button" data-avatar-gesture="joy">✦ Cheer</button>
-      </div>
-    </details>
-    <details class="guide-settings"><summary>Voice &amp; AI settings</summary>
-      <div class="model-row"><label for="aiProvider">Voice question AI</label><select id="aiProvider" aria-label="Voice question AI provider"><option value="online" selected>Online AI · Gemini</option><option value="device">On-device AI · no credits</option><option value="local">Local Ollama</option></select><button id="retryModels" type="button" aria-label="Retry AI connection" title="Retry connection">↻</button></div>
-      <div id="localModelRow" class="model-row"><label for="modelSelect">Local model</label><select id="modelSelect" aria-label="Local AI model"><option value="">Checking Ollama…</option></select></div>
-      <p id="modelNotice" class="model-notice" aria-live="polite">Checking AI connections…</p>
-      <p class="model-notice">On-device AI runs in supported desktop Chrome and may download a model once. Online AI uses the server's Gemini free-tier quota.</p>
-      <div class="voice-row"><label for="voiceSelect">Voice</label><select id="voiceSelect" aria-label="Speaking voice"><option>Loading voices…</option></select></div>
-      <p id="voiceNotice" class="voice-notice" aria-live="polite">Dork speaks instantly with Google UK English Male when it is available in your browser.</p>
-    </details>
-    </div>
-  </aside>
+  <p id="dorkCaption" class="speech-caption" role="status" aria-live="polite" hidden></p>
+  <div class="voice-dock" role="group" aria-label="Dork voice controls">
+    <button id="skipGuideInline" class="voice-skip" type="button" hidden>Skip tour</button>
+    <button id="listenButton" class="voice-toggle" type="button" aria-label="Turn on voice commands" aria-pressed="false" title="Turn on voice commands"><span aria-hidden="true">🎙</span></button>
+    <span id="avatarStatus" class="sr-only" role="status" aria-live="polite">Loading character…</span>
+  </div>
+  <div hidden>
+    <select id="aiProvider"><option value="online" selected>Online AI</option><option value="device">On-device AI</option><option value="local">Local Ollama</option></select>
+    <button id="retryModels" type="button">Retry connection</button>
+    <span id="localModelRow"><select id="modelSelect"><option value="">Checking Ollama…</option></select></span>
+    <p id="modelNotice">Checking AI connections…</p>
+    <select id="voiceSelect"><option>Loading voices…</option></select>
+    <p id="voiceNotice"></p>
+  </div>
 
   <footer class="site-footer" inert>Character motion prototype · Explore by touch, click, or voice.</footer>
 </body>
