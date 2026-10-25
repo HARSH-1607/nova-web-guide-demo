@@ -29,7 +29,7 @@ async function main() {
   });
   const independentHost = http.createServer((_request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end(`<!doctype html><title>Independent host</title><main><section id="pricing" data-nova-guide="pricing" data-nova-description="Plans on an independent origin"><h1>Pricing</h1></section></main><script>window.NovaEmbedConfig={onNavigate(key){document.body.dataset.lastNovaStop=key}}</script><script src="http://127.0.0.1:${port}/embed/nova-embed.js"></script>`);
+    response.end(`<!doctype html><title>Independent host</title><main><section id="pricing" data-nova-guide="pricing" data-nova-description="Plans on an independent origin"><h1>Pricing</h1></section><section><h2>Shipping &amp; Returns</h2><p>Delivery and returns information.</p></section></main><script>window.NovaEmbedConfig={onNavigate(key){document.body.dataset.lastNovaStop=key}}</script><script src="http://127.0.0.1:${port}/embed/nova-embed.js"></script>`);
   });
   await new Promise((resolve) => independentHost.listen(hostPort, '127.0.0.1', resolve));
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-embed-'));
@@ -194,12 +194,31 @@ async function main() {
       console.log(`Starter screenshot: ${output}`);
     }
     console.log('Browser test passed: both pages load the rigged model, reactions, cursor gaze, chat, tour, and widget controls.');
+    await send('Page.navigate', { url: `http://127.0.0.1:${port}/embed/demo.html?personality=professional` });
+    await sleep(500);
+    await waitFor('document.querySelector("iframe")?.contentDocument?.querySelector(".panel-heading strong")?.textContent === "Mira"', 'Custom personality name');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("A small sample shop")', 'Site-specific greeting');
+    await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="what is this site";doc.querySelector("#questionForm").requestSubmit()})()');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("Sample Shop · Nova embed demo: A small sample shop")', 'Site metadata answer');
+    await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="show pricing";doc.querySelector("#questionForm").requestSubmit()})()');
+    await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Personalized section navigation');
+    await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="tell me more about that";doc.querySelector("#questionForm").requestSubmit()})()');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").lastElementChild?.textContent.includes("Pricing: Here are the sample plans")', 'Contextual follow-up');
+    await evaluate('window.NovaEmbedConfig.onQuestion=(_question,_destinations,context)=>{document.body.dataset.personaContext=JSON.stringify(context);return "Custom answer."}');
+    await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="quantum pancakes";doc.querySelector("#questionForm").requestSubmit()})()');
+    await waitFor('Boolean(document.body.dataset.personaContext)', 'AI callback receives site and personality');
+    assert.equal(await evaluate('JSON.parse(document.body.dataset.personaContext).personality.name'), 'Mira');
+    assert.equal(await evaluate('JSON.parse(document.body.dataset.personaContext).personality.instructions'), 'Be calm and concise.');
+    assert.equal(await evaluate('JSON.parse(document.body.dataset.personaContext).site.description.includes("small sample shop")'), true);
+    assert.ok(await evaluate('JSON.parse(document.body.dataset.personaContext).history.length > 0'));
     await send('Page.navigate', { url: `http://127.0.0.1:${hostPort}/` });
     await sleep(500);
     await waitFor('window.NovaEmbed && document.querySelector("iframe")', 'Independent host installation');
     assert.equal(await evaluate('new URL(document.querySelector("iframe").src).port'), String(port));
     assert.equal(await evaluate('window.NovaEmbed.navigate("pricing")'), true);
     await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Cross-origin host navigation');
+    assert.equal(await evaluate('window.NovaEmbed.navigate("shipping-returns")'), true);
+    await waitFor('document.body.dataset.lastNovaStop === "shipping-returns"', 'Automatic section discovery without an ID');
     console.log('Cross-origin install passed: independent host and Nova iframe exchanged guide actions.');
   } finally {
     socket?.close();

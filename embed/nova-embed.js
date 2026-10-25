@@ -6,9 +6,37 @@
   const script = document.currentScript;
   const base = new URL('./', script.src);
   const config = window.NovaEmbedConfig || {};
+  const clean = (value, limit) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
+  const personalityOptions = typeof config.personality === 'string'
+    ? { tone: config.personality } : config.personality || {};
+  const personality = {
+    name: clean(personalityOptions.name, 32) || 'Nova',
+    tone: ['friendly', 'professional', 'playful'].includes(personalityOptions.tone)
+      ? personalityOptions.tone : 'friendly',
+    greeting: clean(personalityOptions.greeting, 240),
+    instructions: clean(personalityOptions.instructions, 400)
+  };
+  function siteInfo() {
+    const options = config.site || {};
+    return {
+      title: clean(options.title || document.querySelector('meta[property="og:site_name"]')?.content || document.title, 100) || 'this site',
+      description: clean(options.description || document.querySelector('meta[name="description"]')?.content, 360),
+      headline: clean(document.querySelector('main h1, h1')?.textContent, 120)
+    };
+  }
+  function greeting() {
+    const site = siteInfo();
+    if (personality.greeting) return personality.greeting.replace(/\{site\}/gi, site.title).replace(/\{name\}/gi, personality.name);
+    const lead = personality.tone === 'professional'
+      ? `Hello. I'm ${personality.name}, your guide to ${site.title}.`
+      : personality.tone === 'playful'
+        ? `Hey! I'm ${personality.name}. Let's explore ${site.title} together!`
+        : `Hi! I'm ${personality.name}. Welcome to ${site.title}.`;
+    return `${lead} ${site.description || site.headline || 'I can show you around this page.'} Ask me about a section or take the tour.`.slice(0, 420);
+  }
   const channel = globalThis.crypto?.randomUUID?.() || `nova-${Date.now()}-${Math.random()}`;
   const frame = document.createElement('iframe');
-  frame.title = config.title || 'Nova website guide';
+  frame.title = config.title || `${personality.name} website guide`;
   frame.setAttribute('aria-label', frame.title);
   frame.setAttribute('allow', 'autoplay');
   frame.src = new URL(`frame.html?channel=${encodeURIComponent(channel)}`, base).href;
@@ -41,6 +69,7 @@
   let highlighted = null;
   let highlightTimer = 0;
   let currentRequestId = 0;
+  let lastTarget = null;
   function clearHighlight() {
     if (!highlighted) return;
     highlighted.element.style.outline = highlighted.outline;
@@ -51,13 +80,17 @@
 
   function targets() {
     const result = new Map();
-    for (const element of document.querySelectorAll('[data-nova-guide], main section[id], section[id], header[id], footer[id]')) {
-      const key = element.dataset.novaGuide || element.id;
-      if (!key || result.has(key)) continue;
+    for (const element of document.querySelectorAll('[data-nova-guide], section, header, footer')) {
+      if (element.hidden || !element.getClientRects().length) continue;
       const heading = element.querySelector('h1,h2,h3');
+      if (!element.dataset.novaGuide && !element.id && heading?.closest('section,header,footer') !== element) continue;
+      const label = clean(element.dataset.novaLabel || heading?.textContent || element.id, 80);
+      const generated = normalized(label).replace(/ /g, '-').slice(0, 48);
+      const key = element.dataset.novaGuide || element.id || generated;
+      if (!key || result.has(key)) continue;
       result.set(key, {
         key, element,
-        label: (element.dataset.novaLabel || heading?.textContent || key).trim().slice(0, 80),
+        label: label || key,
         description: (element.dataset.novaDescription || `This is the ${key.replace(/[-_]/g, ' ')} section.`).trim().slice(0, 300),
         aliases: (element.dataset.novaAliases || '').split(',').map((alias) => alias.trim()).filter(Boolean)
       });
@@ -109,6 +142,7 @@
   }
 
   function navigateTo(item) {
+    lastTarget = item;
     item.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     clearHighlight();
     highlighted = {
@@ -126,13 +160,27 @@
       try { Promise.resolve(config.onNavigate(item.key, item.element)).catch((error) => console.warn('Nova onNavigate callback failed:', error)); }
       catch (error) { console.warn('Nova onNavigate callback failed:', error); }
     }
-    return { text: item.description, gesture: 'point', target: item.key };
+    const text = personality.tone === 'professional' ? `${item.label}. ${item.description}`
+      : personality.tone === 'playful' ? `Here we are at ${item.label}! ${item.description}`
+        : `Let's take a look at ${item.label}. ${item.description}`;
+    return { text: text.slice(0, 1000), gesture: 'point', target: item.key };
   }
 
-  async function answer(question) {
+  async function answer(question, history = []) {
     const items = targets();
     const match = matchTarget(question, items);
     if (match) return navigateTo(match);
+    const site = siteInfo();
+    if (/\b(what is this (site|website|page)|what (do you|does this site) (do|offer)|tell me about (this |the )?(site|website|company))\b/i.test(question)) {
+      const summary = site.description || site.headline || `${site.title} has sections I can guide you through.`;
+      return { text: `${site.title}: ${summary}`.slice(0, 1000), gesture: 'point' };
+    }
+    if (/\b(what can you do|how can you help|help me explore)\b/i.test(question)) {
+      return { text: `I can guide you around ${site.title}, explain its marked sections, and point to the next place to visit. Ask for a tour or name a section.`, gesture: 'wave' };
+    }
+    if (/\b(tell me more|what about that|explain that)\b/i.test(question) && lastTarget) {
+      return { text: `${lastTarget.label}: ${lastTarget.description} I can show you this section again or take you to another one.`, gesture: 'point', target: lastTarget.key };
+    }
     if (/\b(wave|hello|hi)\b/i.test(question)) return { text: 'Hi! I can guide you around this page.', gesture: 'wave' };
     if (/\b(dance|celebrate)\b/i.test(question)) return { text: 'A little celebration for us!', gesture: 'dance' };
     if (/\b(nod|agree)\b/i.test(question)) return { text: 'Yes, I am with you!', gesture: 'nod' };
@@ -144,7 +192,8 @@
       let timer;
       const custom = await Promise.race([
         Promise.resolve().then(() => config.onQuestion(question,
-          items.map(({ key, label, description }) => ({ key, label, description })))),
+          items.map(({ key, label, description }) => ({ key, label, description })),
+          { site, personality: { ...personality }, currentTarget: lastTarget?.key || null, history })),
         new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Question callback timed out')), 15000); })
       ]).finally(() => clearTimeout(timer));
       if (typeof custom === 'string') return { text: custom.slice(0, 1000), gesture: 'point' };
@@ -154,14 +203,17 @@
       }
     }
     const names = items.slice(0, 3).map((item) => item.key).join(', ');
-    return { text: names ? `I can show you ${names}. Ask me where to go!` : 'Add data-nova-guide to a section so I can guide visitors there.', gesture: 'point' };
+    const lead = personality.tone === 'professional' ? `On ${site.title}, I can guide you to ${names}.`
+      : personality.tone === 'playful' ? `Let's explore ${site.title}! Try ${names}.`
+        : `I can show you ${names} on ${site.title}.`;
+    return { text: names ? `${lead} Ask me where to go!` : `I don't have guide stops for ${site.title} yet. Add data-nova-guide to a section so I can help visitors explore.`, gesture: 'point' };
   }
 
   async function onMessage(event) {
     if (event.source !== frame.contentWindow || event.origin !== base.origin || event.data?.novaChannel !== channel) return;
     if (event.data.type === 'ready') {
       frameReady = true;
-      send('init', { siteTitle: document.title.slice(0, 100), targets: targets().map(({ key, label }) => ({ key, label })) });
+      send('init', { site: siteInfo(), personality, greeting: greeting(), targets: targets().map(({ key, label }) => ({ key, label })) });
       if (queuedAsk) { send('hostAsk', { question: queuedAsk }); queuedAsk = null; }
     } else if (event.data.type === 'question') {
       const question = typeof event.data.question === 'string' ? event.data.question.trim().slice(0, 500) : '';
@@ -169,7 +221,10 @@
       const requestId = Number.isSafeInteger(event.data.requestId) ? event.data.requestId : 0;
       currentRequestId = requestId;
       try {
-        const result = await answer(question);
+        const history = Array.isArray(event.data.history) ? event.data.history.slice(-8)
+          .filter((turn) => ['user', 'assistant'].includes(turn?.role) && typeof turn.content === 'string')
+          .map((turn) => ({ role: turn.role, content: clean(turn.content, 500) })) : [];
+        const result = await answer(question, history);
         if (currentRequestId !== requestId) return;
         if (result.navigateTarget) {
           const destination = targets().find((item) => item.key === result.navigateTarget);
@@ -221,7 +276,7 @@
       const item = targets().find((target) => target.key === key);
       return item ? askFromHost(`Show me ${item.key}`) : false;
     },
-    refreshTargets() { send('init', { siteTitle: document.title.slice(0, 100), targets: targets().map(({ key, label }) => ({ key, label })) }); },
+    refreshTargets() { send('init', { site: siteInfo(), personality, greeting: greeting(), targets: targets().map(({ key, label }) => ({ key, label })) }); },
     destroy() { clearTimeout(highlightTimer); clearHighlight(); cancelAnimationFrame(pointerFrame); window.removeEventListener('message', onMessage); window.removeEventListener('resize', sizeFrame); window.removeEventListener('pointermove', onPointerMove); window.removeEventListener('blur', onBlur); frame.remove(); delete window.NovaEmbed; }
   };
 })();

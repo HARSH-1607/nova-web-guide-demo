@@ -12,7 +12,30 @@ Add this before the closing `</body>` tag on an HTML page:
 <script src="https://nova-web-guide-demo.onrender.com/embed/nova-embed.js"></script>
 ```
 
-The script creates one fixed, transparent iframe in the lower-right corner. It scans sections with IDs automatically, and it also recognizes any element marked `data-nova-guide`. Its CSS and WebGL canvas stay inside the iframe, so they do not restyle your website. The avatar files are public static assets; the protected Aura demo page and paid AI API remain behind their existing authentication.
+The script creates one fixed, transparent iframe in the lower-right corner. It scans visible sections with headings automatically, including sections without IDs, and it also recognizes any element marked `data-nova-guide`. Its CSS and WebGL canvas stay inside the iframe, so they do not restyle your website. The avatar files are public static assets; the protected Aura demo page and paid AI API remain behind their existing authentication.
+
+Nova reads the host page's public title, meta description, first heading, and marked guide sections to tailor her greeting and section explanations. She does not read form entries or the full page body. Add `data-nova-description` to important sections for accurate, site-specific answers. Sections without IDs get a generated key from their heading (for example, “Shipping & Returns” becomes `shipping-returns`); explicit `data-nova-guide` keys are more stable when page text changes. A conversation can ask “what is this site?”, name a section, or follow up with “tell me more about that.”
+
+## Change Nova's personality
+
+Put configuration before the install script. The default is Nova with a friendly, concise tone. Choose `friendly`, `professional`, or `playful`, and optionally provide a name, greeting, and instructions for your AI backend:
+
+```html
+<script>
+  window.NovaEmbedConfig = {
+    site: { title: 'Acme Studio', description: 'Design and development for small teams.' },
+    personality: {
+      name: 'Mira',
+      tone: 'professional',
+      greeting: 'Hello, I am {name}. Welcome to {site}.',
+      instructions: 'Use short, practical answers and a calm voice.'
+    }
+  };
+</script>
+<script src="https://nova-web-guide-demo.onrender.com/embed/nova-embed.js"></script>
+```
+
+The name, tone, and greeting change the built-in dialogue. `instructions` and the discovered site profile are passed to the optional `onQuestion` callback so your backend can keep the same character personality in AI answers. Try the [professional demo](https://nova-web-guide-demo.onrender.com/embed/demo.html?personality=professional) or [playful demo](https://nova-web-guide-demo.onrender.com/embed/demo.html?personality=playful).
 
 Visitors can minimize the guide to a small floating button and reopen it. On narrow screens, the character and chat panel scale down to leave more room for the host page.
 The **Take a tour** button walks through up to 12 discovered destinations, one stop at a time. Visitors can also type “show me around,” “next,” “back,” or “stop tour.” They can go back, advance, or exit without losing access to the site. Pressing Escape minimizes the guide.
@@ -63,11 +86,11 @@ Give the widget an `onQuestion` callback that calls **your own backend**. Never 
 ```html
 <script>
   window.NovaEmbedConfig = {
-    async onQuestion(question, destinations) {
+    async onQuestion(question, destinations, context) {
       const response = await fetch('/api/assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, destinations })
+        body: JSON.stringify({ question, destinations, context })
       });
       if (!response.ok) throw new Error('Assistant unavailable');
       const { reply } = await response.json();
@@ -78,7 +101,7 @@ Give the widget an `onQuestion` callback that calls **your own backend**. Never 
 <script src="https://nova-web-guide-demo.onrender.com/embed/nova-embed.js"></script>
 ```
 
-The host backend is responsible for authentication, rate limiting, cost limits, and any AI provider key. The callback may return `{ text, target: 'pricing' }` to make Nova highlight a configured destination. The widget stops waiting after 15 seconds if the callback does not respond. The default embed sends only the page title and configured section names/descriptions to its iframe—not the full page content.
+The host backend is responsible for authentication, rate limiting, cost limits, and any AI provider key. The `context` argument contains `{ site, personality, currentTarget, history }`. The callback may return `{ text, target: 'pricing' }` to make Nova highlight a configured destination. The widget stops waiting after 15 seconds if the callback does not respond. The default embed sends the site profile and configured section names/descriptions to its iframe—not the full page content.
 
 The host page can call `window.NovaEmbed.show()`, `.hide()`, `.refreshTargets()` after dynamic navigation, or `.destroy()`. Its own buttons can ask the guide to act:
 

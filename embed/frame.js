@@ -37,18 +37,15 @@
   let activeRequestId = 0;
   let destinations = [];
   let tourIndex = -1;
+  let site = { title: 'this site', description: '', headline: '' };
+  let personality = { name: 'Nova', tone: 'friendly' };
+  let history = [];
   let nextIdleGesture = performance.now() + 11000;
   let actorClicks = 0;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const reactions = {
-    wave: ['Hello there! Give me a question or take the tour.', 2500],
-    nod: ['Yes, I am listening.', 1900],
-    shake: ['Not quite. Let us try another way.', 1900],
-    think: ['Hmm. Ask me about a section and I will find it.', 2300],
-    fistBump: ['Fist bump! We make a good team.', 1700],
-    jump: ['Here we go!', 2000],
-    dance: ['A little dance for you!', 4200],
-    joy: ['That is worth celebrating!', 2400]
+  const reactionDurations = {
+    wave: 2500, nod: 1900, shake: 1900, think: 2300,
+    fistBump: 1700, jump: 2000, dance: 4200, joy: 2400
   };
 
   function post(type, extra = {}) {
@@ -62,6 +59,23 @@
     messages.append(element);
     while (messages.children.length > 12) messages.firstElementChild.remove();
     messages.scrollTop = messages.scrollHeight;
+    history.push({ role: who === 'visitor' ? 'user' : 'assistant', content: message });
+    history = history.slice(-8);
+  }
+
+  function reactionLine(type) {
+    const style = { friendly: 0, professional: 1, playful: 2 }[personality.tone] || 0;
+    const lines = {
+      wave: [`Hi! I'm ${personality.name}. Want to explore ${site.title}?`, `Hello. I'm ${personality.name}, ready to guide you through ${site.title}.`, `Hey, I'm ${personality.name}! Let's discover ${site.title}!`],
+      nod: ['Yes, I am listening.', 'Understood. I am listening.', 'Yep, I am all ears!'],
+      shake: ['Not quite. Let us try another way.', 'That does not appear to be the right path. Let us try another.', 'Oops, not that way. Let us try again!'],
+      think: [`Let me think about ${site.title}. What would you like to find?`, `I can help locate information on ${site.title}. What do you need?`, `Hmm, let me explore ${site.title} with you!`],
+      fistBump: ['Fist bump! We make a good team.', 'Well done. We made progress together.', 'Fist bump! Teamwork wins!'],
+      jump: ['Here we go!', 'Moving to the next step.', 'Here we go—adventure time!'],
+      dance: ['A little dance for you!', 'A brief celebration.', 'A happy dance, just for you!'],
+      joy: ['That is worth celebrating!', 'Excellent progress.', 'We did it! Let us celebrate!']
+    };
+    return (lines[type] || lines.wave)[style];
   }
 
   function startGesture(type, duration = 2300) {
@@ -70,7 +84,8 @@
   }
 
   function react(type) {
-    const [line, duration] = reactions[type] || reactions.wave;
+    const duration = reactionDurations[type] || reactionDurations.wave;
+    const line = reactionLine(type);
     startGesture(type, duration);
     bubble('nova', line);
     status.textContent = 'Speaking…';
@@ -91,7 +106,7 @@
     speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
     utterance.lang = 'en-US';
-    utterance.rate = 0.95;
+    utterance.rate = personality.tone === 'professional' ? 0.9 : personality.tone === 'playful' ? 1.05 : 0.95;
     const voices = speechSynthesis.getVoices();
     utterance.voice = voices.find((voice) => /\b(aria|jenny|zira|ava|samantha|victoria|sonia|female)\b/i.test(voice.name) && /^en/i.test(voice.lang))
       || voices.find((voice) => /^en/i.test(voice.lang)) || null;
@@ -166,7 +181,7 @@
       if (tourIndex === destinations.length - 1) {
         bubble('visitor', question);
         endTour();
-        bubble('nova', 'That is the tour! Ask me about any section whenever you like.');
+        bubble('nova', `That is the tour of ${site.title}! Ask me about any section whenever you like.`);
       } else visitTour(tourIndex + 1, question);
       return;
     }
@@ -180,10 +195,11 @@
       else { bubble('visitor', question); bubble('nova', 'There are no guide stops on this page yet.'); }
       return;
     }
+    const previousDialogue = history.slice(-8);
     bubble('visitor', question);
     startGesture('think', 15000);
     status.textContent = 'Thinking…';
-    post('question', { question, requestId: beginPending() });
+    post('question', { question, history: previousDialogue, requestId: beginPending() });
   }
 
   function updateTourControls() {
@@ -221,7 +237,7 @@
   tourNext.addEventListener('click', () => {
     if (tourIndex === destinations.length - 1) {
       endTour();
-      bubble('nova', 'That is the tour! Ask me about any section whenever you like.');
+      bubble('nova', `That is the tour of ${site.title}! Ask me about any section whenever you like.`);
     } else visitTour(tourIndex + 1);
   });
   tourExit.addEventListener('click', endTour);
@@ -272,8 +288,26 @@
       restore.hidden = true;
       if (typeof event.data.question === 'string') ask(event.data.question.trim().slice(0, 500));
     } else if (event.data.type === 'init') {
-      const site = typeof event.data.siteTitle === 'string' ? event.data.siteTitle : 'this site';
-      if (!messages.children.length) bubble('nova', `Hi! I'm Nova. I can help you explore ${site}.`);
+      const incomingSite = event.data.site;
+      if (incomingSite && typeof incomingSite.title === 'string') site = {
+        title: incomingSite.title.slice(0, 100),
+        description: typeof incomingSite.description === 'string' ? incomingSite.description.slice(0, 360) : '',
+        headline: typeof incomingSite.headline === 'string' ? incomingSite.headline.slice(0, 120) : ''
+      };
+      const incomingPersonality = event.data.personality;
+      if (incomingPersonality && typeof incomingPersonality.name === 'string') personality = {
+        name: incomingPersonality.name.slice(0, 32),
+        tone: ['friendly', 'professional', 'playful'].includes(incomingPersonality.tone) ? incomingPersonality.tone : 'friendly'
+      };
+      document.querySelector('.panel-heading strong').textContent = personality.name;
+      document.title = `${personality.name} guide`;
+      actor.setAttribute('aria-label', `Wave to ${personality.name}`);
+      document.querySelector('.reaction-menu').setAttribute('aria-label', `${personality.name}'s moves`);
+      document.querySelector('.panel').setAttribute('aria-label', `Chat with ${personality.name}`);
+      document.querySelector('#questionForm label').textContent = `Ask ${personality.name}`;
+      restore.setAttribute('aria-label', `Open ${personality.name} guide`);
+      if (!messages.children.length) bubble('nova', typeof event.data.greeting === 'string'
+        ? event.data.greeting.slice(0, 420) : `Hi! I'm ${personality.name}. I can help you explore ${site.title}.`);
       prompts.replaceChildren();
       const currentKey = destinations[tourIndex]?.key;
       destinations = (Array.isArray(event.data.targets) ? event.data.targets : [])
@@ -284,7 +318,7 @@
         if (typeof item?.key !== 'string') continue;
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = `Show ${item.key}`;
+        button.textContent = `Show ${item.label}`;
         button.addEventListener('click', () => ask(`Show me ${item.key}`));
         prompts.append(button);
       }
