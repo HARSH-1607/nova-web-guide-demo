@@ -91,6 +91,13 @@ async function main() {
       await evaluate(`document.querySelector("iframe").contentDocument.querySelector("#reactionToggle").click();document.querySelector("iframe").contentDocument.querySelector("[data-gesture=${move}]").click()`);
       await waitFor(`document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.animation === "${clip}"`, `${move} animation`);
     }
+    if (process.env.CAPTURE_GESTURE === '1') {
+      await sleep(650);
+      const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+      const output = path.join(os.tmpdir(), 'nova-wave-preview.png');
+      fs.writeFileSync(output, Buffer.from(screenshot.data, 'base64'));
+      console.log(`Wave screenshot: ${output}`);
+    }
     await evaluate('const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="show pricing";doc.querySelector("#questionForm").requestSubmit()');
     await waitFor('document.querySelector("#pricing").style.outline.includes("solid")', 'Host section highlight');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("sample plans")', 'Widget reply');

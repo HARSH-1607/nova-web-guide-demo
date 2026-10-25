@@ -39,6 +39,7 @@ export async function loadDrokAvatar(scene) {
     const clip = THREE.AnimationUtils.subclip(gltf.animations[0], name, first, last, 24);
     return [name, mixer.clipAction(clip)];
   }));
+  const oneShotStates = new Set(['wave', 'point', 'joy', 'nod', 'shake', 'fistBump', 'jump']);
   let activeState = '';
   let activeAction = null;
 
@@ -46,14 +47,25 @@ export async function loadDrokAvatar(scene) {
     if (name === activeState) return;
     const next = actions.get(name);
     if (!next) return;
-    next.reset().setLoop(THREE.LoopRepeat, Infinity).setEffectiveWeight(1).play();
-    if (activeAction) activeAction.crossFadeTo(next, 0.22, false);
+    const once = oneShotStates.has(name);
+    next.reset().setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
+    next.clampWhenFinished = once;
+    next.setEffectiveWeight(1).play();
+    if (activeAction) activeAction.crossFadeTo(next, 0.28, false);
     activeAction = next;
     activeState = name;
   }
   play('idle');
 
   const mouthControl = model.getObjectByName('Drok talk mouth control');
+  const smileControl = model.getObjectByName('Drok smile control');
+  const smirkControl = model.getObjectByName('Drok smirk control');
+  const mouthShapes = [
+    [0.06, 0.06], [0.94, 1.1], [1.12, 0.6], [0.7, 0.55],
+    [0.67, 1.08], [0.52, 0.82], [0.08, 0.08]
+  ];
+  let mouthWidth = 0;
+  let mouthHeight = 0;
   return {
     get activeAnimation() { return activeState; },
     sync(pose, now, delta) {
@@ -65,11 +77,18 @@ export async function loadDrokAvatar(scene) {
       play(state);
       mixer.update(delta);
 
-      // Blender's mouth control is keyed in the talking clip, but the same
-      // control can animate speech while another gesture is playing.
-      if (talking && mouthControl) {
-        const cue = Math.min(6, Math.floor(pose.speechFrame / 7));
-        mouthControl.scale.setScalar([0.06, 0.82, 0.42, 0.32, 1, 0.62, 0.04][cue]);
+      // The cavity keeps its depth while the visible width and height follow
+      // vowel cues. Damping hides abrupt text-boundary changes.
+      if (mouthControl) {
+        const cue = talking ? Math.min(6, Math.max(0, Math.floor(pose.speechFrame / 7))) : 0;
+        const target = talking ? mouthShapes[cue] : [0, 0];
+        const mouthBlend = 1 - Math.exp(-delta * 14);
+        mouthWidth = THREE.MathUtils.lerp(mouthWidth, target[0], mouthBlend);
+        mouthHeight = THREE.MathUtils.lerp(mouthHeight, target[1], mouthBlend);
+        mouthControl.scale.set(mouthWidth, 1, mouthHeight);
+        const expression = THREE.MathUtils.clamp(1 - Math.max(mouthWidth, mouthHeight), 0, 1);
+        if (smileControl) smileControl.scale.multiplyScalar(expression);
+        if (smirkControl) smirkControl.scale.multiplyScalar(expression);
       }
 
       const elapsed = gesture ? Math.max(0, (now - pose.gesture.started) / 1000) : 0;

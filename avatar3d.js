@@ -24,6 +24,27 @@ try {
   rim.position.set(-2.5, 3, -3);
   scene.add(rim);
 
+  // A transparent light pool follows Drok without painting a backdrop over the host site.
+  const haloCanvas = document.createElement('canvas');
+  haloCanvas.width = haloCanvas.height = 256;
+  const haloContext = haloCanvas.getContext('2d');
+  const haloGradient = haloContext.createRadialGradient(128, 128, 20, 128, 128, 126);
+  haloGradient.addColorStop(0, 'rgba(92, 226, 220, 0.43)');
+  haloGradient.addColorStop(0.36, 'rgba(65, 195, 222, 0.19)');
+  haloGradient.addColorStop(1, 'rgba(65, 195, 222, 0)');
+  haloContext.fillStyle = haloGradient;
+  haloContext.fillRect(0, 0, 256, 256);
+  const haloTexture = new THREE.CanvasTexture(haloCanvas);
+  haloTexture.colorSpace = THREE.SRGBColorSpace;
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: haloTexture, transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending, opacity: 0.54
+  }));
+  halo.position.set(0, 1.65, -1.1);
+  halo.scale.set(4.3, 4.3, 1);
+  scene.add(halo);
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   let modelController = null;
   loadDrokAvatar(scene).then((loaded) => {
     modelController = loaded;
@@ -54,6 +75,7 @@ try {
     if (!modelController) return;
     modelController.sync(pose, now, delta);
     actor.dataset.animation = modelController.activeAnimation;
+    halo.material.opacity = reducedMotion ? 0.52 : 0.52 + 0.07 * Math.sin(now * 0.0019);
     updateSize();
     renderer.render(scene, camera);
   }

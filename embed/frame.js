@@ -24,6 +24,10 @@
   let voiceEnabled = true;
   let speakingUntil = 0;
   let speechVersion = 0;
+  let spokenText = '';
+  let speechStartedAt = 0;
+  let speechBoundaryIndex = -1;
+  let speechBoundaryAt = 0;
   let gesture = null;
   let nextBlink = performance.now() + 3000;
   let blinkUntil = 0;
@@ -75,8 +79,11 @@
 
   function speak(message) {
     const version = ++speechVersion;
+    spokenText = String(message || '');
+    speechStartedAt = performance.now();
+    speechBoundaryIndex = -1;
     if (!voiceEnabled || !('speechSynthesis' in window)) {
-      speakingUntil = performance.now() + Math.min(10000, Math.max(1600, message.length * 52));
+      speakingUntil = speechStartedAt + Math.min(10000, Math.max(1600, message.length * 52));
       return;
     }
     speechSynthesis.cancel();
@@ -86,10 +93,33 @@
     const voices = speechSynthesis.getVoices();
     utterance.voice = voices.find((voice) => /\b(aria|jenny|zira|ava|samantha|victoria|sonia|female)\b/i.test(voice.name) && /^en/i.test(voice.lang))
       || voices.find((voice) => /^en/i.test(voice.lang)) || null;
-    speakingUntil = performance.now() + Math.min(15000, Math.max(1800, message.length * 65));
+    speakingUntil = speechStartedAt + Math.min(15000, Math.max(1800, message.length * 65));
+    utterance.onstart = () => {
+      if (version !== speechVersion) return;
+      speechStartedAt = performance.now();
+      speakingUntil = speechStartedAt + Math.min(15000, Math.max(1800, message.length * 65));
+    };
+    utterance.onboundary = (event) => {
+      if (version !== speechVersion || !Number.isFinite(event.charIndex)) return;
+      speechBoundaryIndex = event.charIndex;
+      speechBoundaryAt = performance.now();
+    };
     utterance.onend = () => { if (version === speechVersion) { speakingUntil = 0; status.textContent = 'Ready to guide'; } };
     utterance.onerror = () => { if (version === speechVersion) { speakingUntil = 0; status.textContent = 'Ready to guide'; } };
     speechSynthesis.speak(utterance);
+  }
+
+  function speechMouthFrame(now) {
+    if (!spokenText) return 0;
+    const duration = Math.max(1, speakingUntil - speechStartedAt);
+    const estimated = Math.floor((now - speechStartedAt) / duration * spokenText.length);
+    const index = Math.min(spokenText.length - 1, Math.max(0,
+      speechBoundaryIndex >= 0 ? speechBoundaryIndex + Math.floor((now - speechBoundaryAt) / 95) : estimated));
+    const letter = spokenText[index]?.toLowerCase();
+    const cue = letter === 'a' ? 1 : letter === 'e' ? 2
+      : letter === 'i' || letter === 'y' ? 3 : letter === 'o' ? 4
+        : letter === 'u' ? 5 : /[mbp.!?\s]/.test(letter || ' ') ? 6 : 2;
+    return cue * 7 + Math.floor(now / 40) % 7;
   }
 
   function ask(question) {
@@ -225,7 +255,7 @@
       walkStarted: 0,
       direction: 0,
       gesture,
-      speechFrame: talking ? Math.floor(now / 78) % 49 : null,
+      speechFrame: talking ? speechMouthFrame(now) : null,
       blink: now < blinkUntil,
       gaze: pointer ? { x: Math.max(-1, Math.min(1, pointer.x)), y: Math.max(-1, Math.min(1, pointer.y)) } : null
     }, now);
