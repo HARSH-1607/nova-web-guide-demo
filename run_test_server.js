@@ -118,8 +118,8 @@ function publicEmbedAsset(pathname, method) {
   if (method !== 'GET') return false;
   return new Set([
     '/embed/nova-embed.js', '/embed/frame.html', '/embed/frame.css', '/embed/frame.js', '/embed/demo.html',
-    '/avatar3d.js', '/drok-avatar.js', '/robot-avatar.js',
-    '/models/Drok_Web_Avatar.glb', '/models/RobotExpressive.glb',
+    '/avatar3d.js', '/drok-avatar.js',
+    '/models/Drok_Web_Avatar.glb', '/models/Drok_Web_Avatar_Transparent.png',
     '/vendor/three.module.js', '/vendor/examples/jsm/loaders/GLTFLoader.js',
     '/vendor/examples/jsm/utils/BufferGeometryUtils.js', '/vendor/examples/jsm/utils/SkeletonUtils.js'
   ]).has(pathname);
@@ -492,14 +492,13 @@ http.createServer((request, response) => {
   }
   if (rootDirectory === __dirname) {
     const publicPath = relativePath.replace(/\\/g, '/');
-    const allowedRootFiles = new Set(['index.html', 'styles.css', 'cinematic.css', 'avatar.js', 'cinematic.js', 'contact.js', 'avatar3d.js', 'drok-avatar.js', 'robot-avatar.js']);
+    const allowedRootFiles = new Set(['index.html', 'styles.css', 'cinematic.css', 'avatar.js', 'cinematic.js', 'contact.js', 'avatar3d.js', 'drok-avatar.js']);
     const allowed = allowedRootFiles.has(publicPath)
       || /^embed\/(?:nova-embed\.js|frame\.(?:html|css|js)|demo\.html)$/.test(publicPath)
       || /^avatar\/[a-z-]+\.webp$/.test(publicPath)
       || /^vendor\/.+\.(js|txt)$/.test(publicPath)
       || publicPath === 'models/Drok_Web_Avatar.glb'
-      || publicPath === 'models/RobotExpressive.glb'
-      || publicPath === 'models/RobotExpressive-README.md';
+      || publicPath === 'models/Drok_Web_Avatar_Transparent.png';
     if (!allowed) { response.writeHead(404).end('Not found'); return; }
   }
 

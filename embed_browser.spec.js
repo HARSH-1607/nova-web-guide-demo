@@ -78,15 +78,16 @@ async function main() {
     await waitFor('document.querySelector("iframe")?.contentDocument?.querySelector("#messages")?.textContent.includes("Nova")', 'Widget greeting');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.model === "Drok"', 'Blender Drok model');
     assert.equal(await evaluate('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.renderer'), 'three');
+    assert.equal(await evaluate('document.querySelector("iframe").contentWindow.performance.getEntriesByType("resource").some((entry) => /RobotExpressive|robot-avatar/.test(entry.name))'), false);
     await evaluate('window.dispatchEvent(new PointerEvent("pointermove",{clientX:60,clientY:100}))');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.gazeSource === "host"', 'Host cursor gaze');
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("#reactionToggle").click()');
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("[data-gesture=nod]").click()');
-    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.animation === "happy"', 'Nod animation');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.animation === "nod"', 'Nod animation');
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("#reactionToggle").click()');
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("[data-gesture=fistBump]").click()');
-    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.animation === "mischievous"', 'Fist-bump animation');
-    for (const [move, clip] of [['shake', 'mischievous'], ['think', 'thinking'], ['jump', 'happy'], ['dance', 'happy'], ['joy', 'happy'], ['wave', 'happy']]) {
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.animation === "fistBump"', 'Fist-bump animation');
+    for (const [move, clip] of [['shake', 'shake'], ['think', 'thinking'], ['jump', 'jump'], ['dance', 'dance'], ['joy', 'joy'], ['wave', 'wave']]) {
       await evaluate(`document.querySelector("iframe").contentDocument.querySelector("#reactionToggle").click();document.querySelector("iframe").contentDocument.querySelector("[data-gesture=${move}]").click()`);
       await waitFor(`document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.animation === "${clip}"`, `${move} animation`);
     }
@@ -121,8 +122,9 @@ async function main() {
     await waitFor('document.querySelector("iframe").style.width !== "68px"', 'Widget restore');
     await evaluate('const rootTest=document.createElement("iframe");rootTest.id="rootTest";rootTest.src="/";document.body.append(rootTest)');
     await waitFor('document.querySelector("#rootTest")?.contentDocument?.querySelector("#avatarActor")?.dataset.model === "Drok"', 'Starter page model');
+    assert.equal(await evaluate('getComputedStyle(document.querySelector("#rootTest").contentDocument.querySelector("#avatarCanvas")).display'), 'none');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-avatar-gesture=nod]").click()');
-    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#avatarActor").dataset.animation === "happy"', 'Starter page nod');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#avatarActor").dataset.animation === "nod"', 'Starter page nod');
     if (process.env.CAPTURE_STARTER === '1') {
       await evaluate('document.querySelector("#rootTest").style.cssText="position:fixed;inset:0;width:100vw;height:100vh;border:0;z-index:2147483647"');
       await sleep(300);

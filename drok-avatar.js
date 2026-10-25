@@ -4,12 +4,15 @@ import { GLTFLoader } from './vendor/examples/jsm/loaders/GLTFLoader.js';
 // Blender exports Drok as one 24 fps timeline. Split it into reusable UI states.
 const ranges = {
   idle: [0, 47], listening: [48, 95], thinking: [96, 143],
-  talking: [144, 191], happy: [192, 239], mischievous: [240, 287]
+  talking: [144, 191], happy: [192, 239], mischievous: [240, 287],
+  wave: [288, 335], point: [336, 383], dance: [384, 431],
+  joy: [432, 479], nod: [480, 527], shake: [528, 575],
+  fistBump: [576, 623], jump: [624, 671]
 };
 
 export async function loadDrokAvatar(scene) {
   const gltf = await new GLTFLoader().loadAsync(new URL('./models/Drok_Web_Avatar.glb', import.meta.url).href);
-  if (gltf.animations.length !== 1) throw new Error('Drok needs its six-state Blender timeline.');
+  if (gltf.animations.length !== 1) throw new Error('Drok needs its keyed Blender timeline.');
 
   const model = gltf.scene;
   const bounds = new THREE.Box3().setFromObject(model);
@@ -57,9 +60,8 @@ export async function loadDrokAvatar(scene) {
       const gesture = pose.gesture?.type || null;
       const talking = pose.speechFrame != null;
       const state = gesture === 'think' ? 'thinking'
-        : gesture === 'point' || pose.walking ? 'listening'
-          : gesture === 'shake' || gesture === 'fistBump' ? 'mischievous'
-            : gesture ? 'happy' : talking ? 'talking' : 'idle';
+        : actions.has(gesture) ? gesture
+          : pose.walking ? 'listening' : talking ? 'talking' : 'idle';
       play(state);
       mixer.update(delta);
 
@@ -78,14 +80,7 @@ export async function loadDrokAvatar(scene) {
       let pitch = gazeY * 0.09;
       let bob = 0.012 * Math.sin(now * 0.0016);
       if (pose.walking) { roll += 0.06 * Math.sin(elapsed * 5); bob += 0.035 * Math.sin(now * 0.006); }
-      if (gesture === 'wave') roll += 0.07 * Math.sin(elapsed * 6);
-      if (gesture === 'dance') { roll += 0.15 * Math.sin(elapsed * 5); yaw += 0.22 * Math.sin(elapsed * 3); bob += 0.10 * Math.abs(Math.sin(elapsed * 5)); }
-      if (gesture === 'nod') pitch += 0.12 * Math.sin(elapsed * 7);
-      if (gesture === 'shake') yaw += 0.18 * Math.sin(elapsed * 6);
-      if (gesture === 'think') { roll -= 0.05; pitch += 0.08; }
-      if (gesture === 'fistBump') pitch += 0.10 * Math.sin(elapsed * 8);
-      if (gesture === 'jump' || gesture === 'joy') bob += 0.12 * Math.abs(Math.sin(elapsed * 6));
-      if (gesture === 'point') roll += 0.05;
+      if (gesture === 'think') { roll -= 0.025; pitch += 0.04; }
       const blend = 1 - Math.exp(-delta * 9);
       pivot.rotation.set(
         THREE.MathUtils.lerp(pivot.rotation.x, pitch, blend),

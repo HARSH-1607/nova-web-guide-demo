@@ -1078,19 +1078,8 @@
 
   function loadSpriteFallback() {
     if (window.Nova3D?.ready) return;
-    Promise.all(Object.entries(atlasFiles).map(([name, file]) => new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => { images[name] = image; resolve(); };
-      image.onerror = () => reject(new Error(`Could not load avatar/${file}`));
-      image.src = new URL(`avatar/${file}`, document.baseURI).href;
-    }))).then(() => {
-      if (window.Nova3D?.ready) return;
-      state.ready = true;
-      setStatus('Ready to guide');
-    }).catch((error) => {
-      console.error(error);
-      if (!window.Nova3D?.ready) setStatus('Character art could not load');
-    });
+    state.ready = true;
+    setStatus('Ready to guide');
   }
   window.addEventListener('nova3dfailed', loadSpriteFallback, { once: true });
   window.setTimeout(loadSpriteFallback, 1500);
