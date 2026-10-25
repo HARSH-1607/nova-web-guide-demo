@@ -33,7 +33,7 @@ async function main() {
     assert.equal((await fetch(`${base}/api/online/status`)).status, 401, 'Protected API became public');
     for (const file of [
       '/embed/nova-embed.js', '/embed/dork-embed.js', '/embed/frame.html', '/embed/frame.css', '/embed/frame.js', '/embed/demo.html',
-      '/avatar3d.js', '/drok-avatar.js', '/dork-local-ai.js', '/vendor/three.module.js',
+      '/avatar3d.js', '/drok-avatar.js', '/dork-local-ai.js', '/dork-voice.js', '/vendor/three.module.js',
       '/vendor/examples/jsm/loaders/GLTFLoader.js', '/vendor/examples/jsm/utils/BufferGeometryUtils.js',
       '/vendor/examples/jsm/utils/SkeletonUtils.js', '/models/Drok_Web_Avatar.glb', '/models/Drok_Web_Avatar_Transparent.png'
     ]) {

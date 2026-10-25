@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="frame.css">
   <script type="importmap">{"imports":{"three":"../vendor/three.module.js"}}</script>
   <script src="../dork-local-ai.js" defer></script>
+  <script src="../dork-voice.js" defer></script>
   <script src="frame.js" defer></script>
   <script type="module" src="../avatar3d.js"></script>
 </head>
@@ -31,7 +32,7 @@
   </div>
   <section class="panel" aria-label="Chat with Dork">
     <div class="panel-heading"><span class="status-dot" aria-hidden="true"></span><div><strong>Dork</strong><small id="status">Ready to guide</small></div><button id="soundToggle" type="button" aria-label="Voice: browser. Click to change" title="Voice: browser. Click to change">♫</button><button id="collapse" type="button" aria-label="Minimize Dork" title="Minimize Dork">−</button></div>
-    <small class="voice-disclosure">Voice is AI generated when natural mode is on.</small>
+    <small class="voice-disclosure">Dork’s warm baritone is loading…</small>
     <div id="messages" class="messages" role="log" aria-live="polite"></div>
     <div class="tour-start-row"><button id="startTour" type="button">Take a tour <span aria-hidden="true">→</span></button><span id="tourHint">Explore this site with Dork</span></div>
     <div id="tourControls" class="tour-controls" hidden><button id="tourPrevious" type="button" aria-label="Previous tour stop">←</button><span id="tourProgress" aria-live="polite"></span><button id="tourNext" type="button" aria-label="Next tour stop">Next →</button><button id="tourExit" type="button" aria-label="End tour">×</button></div>

@@ -25,7 +25,8 @@ async function main() {
   let hostPort;
   do { hostPort = await freePort(); } while (hostPort === port);
   const server = spawn(process.execPath, [path.join(__dirname, 'run_test_server.js')], {
-    env: { ...process.env, PORT: String(port), PUBLIC_DEMO: '', RENDER: '', OPENAI_API_KEY: 'browser-test-key' }, stdio: 'ignore'
+    env: { ...process.env, PORT: String(port), PUBLIC_DEMO: '', RENDER: '',
+      AI_CHAT_PROVIDER: 'openai', PAID_VOICE_ENABLED: 'false', OPENAI_API_KEY: 'browser-test-key' }, stdio: 'ignore'
   });
   const independentHost = http.createServer((_request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -169,6 +170,8 @@ async function main() {
     await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Host page button integration');
     await evaluate('const rootTest=document.createElement("iframe");rootTest.id="rootTest";rootTest.src="/";document.body.append(rootTest)');
     await waitFor('document.querySelector("#rootTest")?.contentDocument?.querySelector("#avatarActor")?.dataset.model === "Drok"', 'Starter page model');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#modelNotice").textContent.includes("Online AI ready")', 'Online AI default ready');
+    assert.equal(await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#aiProvider").value'), 'online');
     assert.equal(await evaluate('getComputedStyle(document.querySelector("#rootTest").contentDocument.querySelector("#avatarCanvas")).display'), 'none');
     await evaluate('(()=>{const doc=document.querySelector("#rootTest").contentDocument;doc.querySelector("#speechText").value="enter the website";doc.querySelector("#speechForm").requestSubmit()})()');
     await waitFor('!document.querySelector("#rootTest").contentDocument.body.classList.contains("intro-active")', 'Starter site unlock');
@@ -179,7 +182,7 @@ async function main() {
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-walkthrough-target=contact]").click()');
     await waitFor('document.querySelector("#rootTest").contentDocument.activeElement?.name === "message"', 'Independent contact action');
     await evaluate('(()=>{const select=document.querySelector("#rootTest").contentDocument.querySelector("#aiProvider");select.value="online";select.dispatchEvent(new Event("change"))})()');
-    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#modelNotice").textContent.includes("Online AI configured")', 'Online provider ready for cancel test');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#modelNotice").textContent.includes("Online AI ready")', 'Online provider ready for cancel test');
     await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;const original=win.fetch.bind(win);win.fetch=(resource,options)=>String(resource).includes("/api/online/chat")?new Promise((_,reject)=>options.signal.addEventListener("abort",()=>reject(new DOMException("Aborted","AbortError")),{once:true})):original(resource,options);const doc=win.document;doc.querySelector("#speechText").value="Tell me about elephants";doc.querySelector("#speechForm").requestSubmit()})()');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#askButton").textContent === "Stop"', 'Starter AI request can be stopped');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#askButton").click()');

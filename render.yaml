@@ -17,6 +17,12 @@ services:
         value: gemini
       - key: GEMINI_MODEL
         value: gemini-3.5-flash-lite
+      - key: GEMINI_TTS_ENABLED
+        value: "true"
+      - key: GEMINI_TTS_MODEL
+        value: gemini-3.8-flash-lite-tts
+      - key: GEMINI_TTS_VOICE
+        value: Orus
       - key: PAID_VOICE_ENABLED
         value: "false"
       - key: EMBED_AI_ENABLED

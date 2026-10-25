@@ -10,6 +10,7 @@
   const prompts = document.getElementById('prompts');
   const status = document.getElementById('status');
   const soundToggle = document.getElementById('soundToggle');
+  const voiceDisclosure = document.querySelector('.voice-disclosure');
   const collapse = document.getElementById('collapse');
   const restore = document.getElementById('restore');
   const startTour = document.getElementById('startTour');
@@ -111,11 +112,7 @@
     if (version !== speechVersion || voiceMode === 'off') return;
     if (!('speechSynthesis' in window)) return;
     const utterance = new SpeechSynthesisUtterance(message);
-    utterance.lang = 'en-US';
-    utterance.rate = personality.tone === 'professional' ? 0.9 : personality.tone === 'playful' ? 1.05 : 0.95;
-    const voices = speechSynthesis.getVoices();
-    utterance.voice = voices.find((voice) => /\b(aria|jenny|zira|ava|samantha|victoria|sonia|female)\b/i.test(voice.name) && /^en/i.test(voice.lang))
-      || voices.find((voice) => /^en/i.test(voice.lang)) || null;
+    window.DorkVoice.apply(utterance, window.DorkVoice.rank(speechSynthesis.getVoices())[0] || null, personality.tone);
     utterance.onstart = () => {
       if (version !== speechVersion) return;
       speechStartedAt = performance.now();
@@ -149,7 +146,8 @@
         if (!response.ok) throw new Error('Natural voice unavailable');
         const result = await response.json();
         if (version !== speechVersion || voiceMode === 'off') return;
-        const audio = new Audio(`data:audio/mpeg;base64,${result.audioBase64}`);
+        const audioMimeType = result.audioMimeType === 'audio/wav' ? 'audio/wav' : 'audio/mpeg';
+        const audio = new Audio(`data:${audioMimeType};base64,${result.audioBase64}`);
         speechAudio = audio;
         naturalAlignment = result.alignment;
         audio.onplay = () => {
@@ -170,7 +168,9 @@
   function speechMouthFrame(now) {
     if (!spokenText) return 0;
     const duration = Math.max(1, speakingUntil - speechStartedAt);
-    const estimated = Math.floor((now - speechStartedAt) / duration * spokenText.length);
+    const progress = speechAudio && Number.isFinite(speechAudio.duration) && speechAudio.duration > 0
+      ? speechAudio.currentTime / speechAudio.duration : (now - speechStartedAt) / duration;
+    const estimated = Math.floor(progress * spokenText.length);
     let index = Math.min(spokenText.length - 1, Math.max(0,
       speechBoundaryIndex >= 0 ? speechBoundaryIndex + Math.floor((now - speechBoundaryAt) / 95) : estimated));
     if (speechAudio && Array.isArray(naturalAlignment?.character_start_times_seconds)) {
@@ -321,8 +321,9 @@
   });
   function updateVoiceButton() {
     soundToggle.textContent = voiceMode === 'natural' ? '✦' : voiceMode === 'browser' ? '♫' : '×';
-    soundToggle.title = `Voice: ${voiceMode}. Click to change`;
-    soundToggle.setAttribute('aria-label', `Voice: ${voiceMode}. Click to change`);
+    const label = voiceMode === 'natural' ? 'Dork warm baritone' : voiceMode === 'browser' ? 'masculine browser voice' : 'off';
+    soundToggle.title = `Voice: ${label}. Click to change`;
+    soundToggle.setAttribute('aria-label', `Voice: ${label}. Click to change`);
   }
   soundToggle.addEventListener('click', () => {
     voiceMode = naturalVoiceAvailable
@@ -333,6 +334,10 @@
   fetch('../api/embed/status').then((response) => response.ok ? response.json() : null).then((result) => {
     naturalVoiceAvailable = Boolean(result?.naturalVoice);
     if (naturalVoiceAvailable && voiceMode !== 'off' && !localMode) voiceMode = 'natural';
+    voiceDisclosure.textContent = result?.voiceProvider === 'gemini'
+      ? 'Dork’s baritone is AI generated using Gemini’s free-tier voice quota.'
+      : naturalVoiceAvailable ? 'Dork’s natural voice is AI generated and uses provider credits.'
+        : 'Dork uses a masculine browser voice. Available voices depend on your device.';
     updateVoiceButton();
   }).catch(() => updateVoiceButton());
   window.DorkLocalAI.availability().then((value) => { localAIButton.hidden = value === 'unavailable'; });

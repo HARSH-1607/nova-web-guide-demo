@@ -21,6 +21,11 @@ const AI_CHAT_PROVIDER = process.env.AI_CHAT_PROVIDER || 'gemini';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const GEMINI_API_URL = process.env.NODE_ENV === 'test' && process.env.GEMINI_TEST_API_URL
   ? process.env.GEMINI_TEST_API_URL : `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`;
+const GEMINI_TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-lite-tts';
+const GEMINI_TTS_VOICE = process.env.GEMINI_TTS_VOICE || 'Orus';
+const GEMINI_TTS_ENABLED = process.env.GEMINI_TTS_ENABLED !== 'false';
+const GEMINI_TTS_URL = process.env.NODE_ENV === 'test' && process.env.GEMINI_TEST_TTS_URL
+  ? process.env.GEMINI_TEST_TTS_URL : 'https://generativelanguage.googleapis.com/v1beta/interactions';
 const OPENAI_API_URL = process.env.NODE_ENV === 'test' && process.env.OPENAI_TEST_API_URL
   ? process.env.OPENAI_TEST_API_URL : 'https://api.openai.com/v1/responses';
 const OPENAI_SPEECH_URL = process.env.NODE_ENV === 'test' && process.env.OPENAI_TEST_SPEECH_URL
@@ -56,6 +61,13 @@ if (process.env.NODE_ENV === 'test' && process.env.GEMINI_TEST_API_URL) {
     || !/^\/v1beta\/models\/[A-Za-z0-9._-]+:generateContent$/.test(testUrl.pathname)
     || testUrl.username || testUrl.password || testUrl.search || testUrl.hash) {
     throw new Error('GEMINI_TEST_API_URL must point to a loopback Gemini generateContent endpoint.');
+  }
+}
+if (process.env.NODE_ENV === 'test' && process.env.GEMINI_TEST_TTS_URL) {
+  const testUrl = new URL(GEMINI_TTS_URL);
+  if (testUrl.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(testUrl.hostname)
+    || testUrl.pathname !== '/v1beta/interactions' || testUrl.username || testUrl.password || testUrl.search || testUrl.hash) {
+    throw new Error('GEMINI_TEST_TTS_URL must point to a loopback /v1beta/interactions endpoint.');
   }
 }
 
@@ -148,7 +160,7 @@ function publicEmbedAsset(pathname, method) {
   if (method !== 'GET') return false;
   return new Set([
     '/embed/nova-embed.js', '/embed/dork-embed.js', '/embed/frame.html', '/embed/frame.css', '/embed/frame.js', '/embed/demo.html',
-    '/avatar3d.js', '/drok-avatar.js', '/dork-local-ai.js',
+    '/avatar3d.js', '/drok-avatar.js', '/dork-local-ai.js', '/dork-voice.js',
     '/models/Drok_Web_Avatar.glb', '/models/Drok_Web_Avatar_Transparent.png',
     '/vendor/three.module.js', '/vendor/examples/jsm/loaders/GLTFLoader.js',
     '/vendor/examples/jsm/utils/BufferGeometryUtils.js', '/vendor/examples/jsm/utils/SkeletonUtils.js'
@@ -281,6 +293,43 @@ function chatModel() {
   return AI_CHAT_PROVIDER === 'gemini' ? GEMINI_MODEL : OPENAI_MODEL;
 }
 
+function naturalVoiceProvider() {
+  if (AI_CHAT_PROVIDER === 'gemini' && GEMINI_TTS_ENABLED && process.env.GEMINI_API_KEY) return 'gemini';
+  if (!PAID_VOICE_ENABLED) return null;
+  if (process.env.ELEVENLABS_API_KEY && /^[A-Za-z0-9_-]{10,64}$/.test(EMBED_VOICE_ID)) return 'elevenlabs';
+  if (AI_CHAT_PROVIDER === 'openai' && process.env.OPENAI_API_KEY) return 'openai';
+  return null;
+}
+
+async function geminiSpeech(text) {
+  const upstream = await fetch(GEMINI_TTS_URL, {
+    method: 'POST',
+    headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: GEMINI_TTS_MODEL,
+      input: [{ type: 'user_input', content: [{ type: 'text', text,
+        annotations: [{ type: 'speech_metadata', style: 'Warm, confident, grounded masculine baritone. Conversational, clear, lightly playful, and unhurried.' }] }] }],
+      response_format: { type: 'audio' },
+      generation_config: { speech_config: [{ voice: GEMINI_TTS_VOICE }] }
+    }),
+    signal: AbortSignal.timeout(45000)
+  });
+  if (!upstream.ok) {
+    const error = new Error(`Gemini speech HTTP ${upstream.status}`);
+    error.status = upstream.status === 429 ? 429 : 502;
+    throw error;
+  }
+  const result = await upstream.json();
+  const audioData = (result.steps || []).filter((step) => step.type === 'model_output')
+    .flatMap((step) => step.content || []).filter((part) => part.type === 'audio' && typeof part.data === 'string')
+    .at(-1)?.data;
+  if (!audioData || !/^[A-Za-z0-9+/]+={0,2}$/.test(audioData)) throw new Error('Gemini speech returned no audio.');
+  const audio = Buffer.from(audioData, 'base64');
+  if (audio.length < 44 || audio.length > 4_000_000 || audio.toString('ascii', 0, 4) !== 'RIFF'
+    || audio.toString('ascii', 8, 12) !== 'WAVE') throw new Error('Gemini speech returned invalid WAV audio.');
+  return { audioBase64: audioData, audioMimeType: 'audio/wav', alignment: null };
+}
+
 async function requestChat(instructions, chat, structured) {
   if (AI_CHAT_PROVIDER === 'gemini') {
     const upstream = await fetch(GEMINI_API_URL, {
@@ -344,10 +393,10 @@ function validateEmbedChat(body) {
 
 async function handleEmbedApi(request, response, pathname) {
   if (pathname === '/api/embed/status' && request.method === 'GET') {
+    const voiceProvider = naturalVoiceProvider();
     return sendJson(response, 200, {
       chat: chatConfigured(),
-      naturalVoice: Boolean(PAID_VOICE_ENABLED && ((AI_CHAT_PROVIDER === 'openai' && process.env.OPENAI_API_KEY)
-        || (process.env.ELEVENLABS_API_KEY && /^[A-Za-z0-9_-]{10,64}$/.test(EMBED_VOICE_ID))))
+      naturalVoice: Boolean(voiceProvider), voiceProvider
     });
   }
   if (pathname === '/api/embed/chat' && request.method === 'POST') {
@@ -375,9 +424,8 @@ async function handleEmbedApi(request, response, pathname) {
     } finally { onlineRequestsInProgress--; }
   }
   if (pathname === '/api/embed/speech' && request.method === 'POST') {
-    if (!PAID_VOICE_ENABLED || (!(AI_CHAT_PROVIDER === 'openai' && process.env.OPENAI_API_KEY)
-      && (!process.env.ELEVENLABS_API_KEY || !/^[A-Za-z0-9_-]{10,64}$/.test(EMBED_VOICE_ID))))
-      return sendJson(response, 503, { error: 'Natural voice is not configured.' });
+    const voiceProvider = naturalVoiceProvider();
+    if (!voiceProvider) return sendJson(response, 503, { error: 'Natural voice is not configured.' });
     if (embedSpeechInProgress) return sendJson(response, 429, { error: 'Voice is busy.' });
     let body;
     try { body = await readJsonBody(request); }
@@ -387,26 +435,27 @@ async function handleEmbedApi(request, response, pathname) {
     if (!allowEmbedRequest(request)) return sendJson(response, 429, { error: 'The public voice demo has reached its limit.' });
     embedSpeechInProgress = true;
     try {
-      if (!process.env.ELEVENLABS_API_KEY || !/^[A-Za-z0-9_-]{10,64}$/.test(EMBED_VOICE_ID)) {
+      if (voiceProvider === 'gemini') return sendJson(response, 200, await geminiSpeech(spoken));
+      if (voiceProvider === 'openai') {
         const upstream = await fetch(OPENAI_SPEECH_URL, {
           method: 'POST',
           headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: 'coral', input: spoken,
-            instructions: 'Use a warm, clear, expressive feminine voice. Sound conversational and welcoming.', response_format: 'mp3' }),
+          body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: 'onyx', input: spoken,
+            instructions: 'Use a warm, grounded masculine voice. Speak clearly with a confident, lightly playful tone.', response_format: 'mp3' }),
           signal: AbortSignal.timeout(45000)
         });
         if (!upstream.ok) throw new Error(`OpenAI speech HTTP ${upstream.status}`);
         const audio = Buffer.from(await upstream.arrayBuffer());
         if (!audio.length || audio.length > 2_000_000) throw new Error('Invalid speech response');
-        return sendJson(response, 200, { audioBase64: audio.toString('base64'), alignment: null });
+        return sendJson(response, 200, { audioBase64: audio.toString('base64'), audioMimeType: 'audio/mpeg', alignment: null });
       }
       const generated = await elevenLabsRequest(`/v1/text-to-speech/${EMBED_VOICE_ID}/with-timestamps?output_format=mp3_44100_128`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: spoken, model_id: 'eleven_multilingual_v2' })
       });
       if (!generated.audio_base64) throw new Error('No audio returned');
-      return sendJson(response, 200, { audioBase64: generated.audio_base64, alignment: generated.alignment || null });
-    } catch (error) { return sendJson(response, 502, { error: 'Natural voice is unavailable.' }); }
+      return sendJson(response, 200, { audioBase64: generated.audio_base64, audioMimeType: 'audio/mpeg', alignment: generated.alignment || null });
+    } catch (error) { return sendJson(response, error.status === 429 ? 429 : 502, { error: 'Natural voice is unavailable. A browser voice can continue.' }); }
     finally { embedSpeechInProgress = false; }
   }
   return sendJson(response, 404, { error: 'Unknown API endpoint' });
@@ -678,7 +727,7 @@ http.createServer((request, response) => {
   }
   if (rootDirectory === __dirname) {
     const publicPath = relativePath.replace(/\\/g, '/');
-    const allowedRootFiles = new Set(['index.html', 'styles.css', 'cinematic.css', 'avatar.js', 'cinematic.js', 'contact.js', 'avatar3d.js', 'drok-avatar.js', 'dork-local-ai.js']);
+    const allowedRootFiles = new Set(['index.html', 'styles.css', 'cinematic.css', 'avatar.js', 'cinematic.js', 'contact.js', 'avatar3d.js', 'drok-avatar.js', 'dork-local-ai.js', 'dork-voice.js']);
     const allowed = allowedRootFiles.has(publicPath)
       || /^embed\/(?:(?:nova|dork)-embed\.js|frame\.(?:html|css|js)|demo\.html)$/.test(publicPath)
       || /^avatar\/[a-z-]+\.webp$/.test(publicPath)

@@ -49,6 +49,7 @@
   let elevenVoices = [];
   let selectedVoice = null;
   let naturalVoiceAvailable = false;
+  let naturalVoiceProvider = null;
   let voiceChoiceTouched = false;
   let conversation = [];
   let chatRequestInFlight = false;
@@ -98,18 +99,18 @@
   document.addEventListener('pointerout', (event) => {
     if (!event.relatedTarget) state.pointer.active = false;
   });
-  function femaleVoiceScore(voice) {
-    const name = voice.name.toLowerCase();
-    const femaleNames = /\b(aria|jenny|zira|ava|samantha|victoria|hazel|susan|sonia|moira|tessa|serena|kate|salli|joanna|female|woman)\b/;
-    const natural = /natural|neural|online/;
-    return (femaleNames.test(name) ? 100 : 0) + (natural.test(name) ? 12 : 0)
-      + (voice.lang.toLowerCase() === 'en-us' ? 5 : 0);
+  function updateVoiceNotice() {
+    const source = naturalVoiceProvider === 'gemini' ? 'Gemini free-tier voice quota'
+      : naturalVoiceProvider ? 'provider credits' : null;
+    voiceNotice.textContent = source
+      ? `Dork’s warm baritone uses ${source}. A masculine browser voice takes over if it is unavailable.`
+      : 'Dork uses a lower, masculine browser voice. Available voices depend on your device.';
   }
   function renderVoiceOptions() {
     const previous = voiceSelect.value;
     const naturalGroup = document.createElement('optgroup');
-    naturalGroup.label = 'Natural AI voice · uses credits';
-    naturalGroup.append(new Option('Dork · expressive', 'natural:server'));
+    naturalGroup.label = naturalVoiceProvider === 'gemini' ? 'Gemini voice · free-tier quota' : 'Natural AI voice · provider credits';
+    naturalGroup.append(new Option('Dork · warm baritone', 'natural:server'));
     const browserGroup = document.createElement('optgroup');
     browserGroup.label = 'Browser voices · free';
     if (availableVoices.length) {
@@ -140,7 +141,7 @@
     if (!('speechSynthesis' in window)) return;
     const voices = window.speechSynthesis.getVoices()
       .filter((voice) => voice.lang.toLowerCase().startsWith('en'));
-    availableVoices = voices.sort((a, b) => femaleVoiceScore(b) - femaleVoiceScore(a) || a.name.localeCompare(b.name));
+    availableVoices = window.DorkVoice.rank(voices);
     renderVoiceOptions();
   }
 
@@ -150,14 +151,14 @@
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not load ElevenLabs voices.');
       elevenVoices = (result.voices || []).sort((a, b) => {
-        const aFemale = a.gender?.toLowerCase() === 'female' ? 1 : 0;
-        const bFemale = b.gender?.toLowerCase() === 'female' ? 1 : 0;
-        return bFemale - aFemale || a.name.localeCompare(b.name);
+        const aMale = a.gender?.toLowerCase() === 'male' ? 1 : 0;
+        const bMale = b.gender?.toLowerCase() === 'male' ? 1 : 0;
+        return bMale - aMale || a.name.localeCompare(b.name);
       });
       renderVoiceOptions();
-      voiceNotice.textContent = `${elevenVoices.length} ElevenLabs voices available. Natural and ElevenLabs voices are AI generated and use credits.`;
+      updateVoiceNotice();
     } catch (error) {
-      voiceNotice.textContent = 'Natural voice is AI generated when available. Browser voices work offline.';
+      updateVoiceNotice();
     }
   }
 
@@ -167,7 +168,7 @@
     modelNotice.classList.toggle('error', provider === 'device' ? !onDeviceAvailable : provider === 'online' ? !onlineAvailable : !localAvailable);
     modelNotice.textContent = provider === 'device'
       ? onDeviceAvailable ? 'On-device AI ready. The first question may download a model to your browser.' : 'On-device AI is unavailable on this browser or device.'
-      : provider === 'online' ? onlineAvailable ? `Online AI configured · ${onlineModel}. Provider credits may still be exhausted.` : 'Online AI is not configured.'
+      : provider === 'online' ? onlineAvailable ? `Online AI ready · ${onlineModel}. Provider quota applies.` : 'Online AI is not configured.'
         : localAvailable ? `Local Ollama ready · ${modelSelect.value}` : 'Ollama is unavailable or has no models.';
   }
 
@@ -187,10 +188,6 @@
     modelNotice.textContent = 'Checking AI connections…';
     onDeviceAvailable = Boolean(window.DorkLocalAI) && (await window.DorkLocalAI.availability()) !== 'unavailable';
     aiProvider.querySelector('[value="device"]').disabled = !onDeviceAvailable;
-    if (onDeviceAvailable && !providerChoiceTouched) {
-      aiProvider.value = 'device';
-      modelNotice.textContent = 'On-device AI available. The first question may download the model.';
-    }
     try {
       const response = await fetch('/api/online/status', { cache: 'no-store' });
       const result = await response.json();
@@ -199,11 +196,13 @@
     } catch { onlineAvailable = false; }
     try {
       const response = await fetch('/api/embed/status', { cache: 'no-store' });
-      naturalVoiceAvailable = response.ok && (await response.json()).naturalVoice === true;
+      const result = response.ok ? await response.json() : null;
+      naturalVoiceAvailable = Boolean(result?.naturalVoice);
+      naturalVoiceProvider = result?.voiceProvider || null;
       renderVoiceOptions();
       if (naturalVoiceAvailable && !voiceChoiceTouched) voiceSelect.value = 'natural:server';
-      if (naturalVoiceAvailable) voiceNotice.textContent = 'Dork’s natural voice is AI generated and uses credits. Browser voices work offline.';
-    } catch { naturalVoiceAvailable = false; }
+      updateVoiceNotice();
+    } catch { naturalVoiceAvailable = false; naturalVoiceProvider = null; updateVoiceNotice(); }
     try {
       const response = await fetch('/api/llm/models', { cache: 'no-store' });
       const result = await response.json();
@@ -220,10 +219,10 @@
       localAvailable = false;
       modelSelect.replaceChildren(new Option('Ollama unavailable', ''));
     }
-    if (onDeviceAvailable && aiProvider.value === 'device') {
+    if (!providerChoiceTouched) aiProvider.value = onlineAvailable ? 'online' : onDeviceAvailable ? 'device' : localAvailable ? 'local' : 'online';
+    if (aiProvider.value === 'device') {
       if (!voiceChoiceTouched) voiceSelect.value = [...voiceSelect.options].find((option) => option.value.startsWith('browser:'))?.value || 'browser:default';
-    } else if (!providerChoiceTouched && !onlineAvailable && localAvailable) aiProvider.value = 'local';
-    else if (!providerChoiceTouched && aiProvider.value === 'device') aiProvider.value = 'online';
+    }
     providersChecked = true;
     updateProviderNotice();
   }
@@ -837,7 +836,9 @@
       }
       characterIndex = Math.max(0, low - 1);
     } else {
-      const estimatedIndex = elapsed / speech.estimatedDuration * speech.text.length;
+      const playbackFraction = speech.audio && Number.isFinite(speech.audio.duration) && speech.audio.duration > 0
+        ? speech.audio.currentTime / speech.audio.duration : elapsed / speech.estimatedDuration;
+      const estimatedIndex = playbackFraction * speech.text.length;
       const boundaryIndex = speech.boundaryIndex + Math.max(0, now - speech.boundaryAt) / 125;
       characterIndex = Math.min(speech.text.length - 1,
         speech.hasBoundary ? boundaryIndex : estimatedIndex);
@@ -902,9 +903,7 @@
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(message);
       if (!selectedVoice) loadVoices();
-      if (selectedVoice) utterance.voice = selectedVoice;
-      utterance.pitch = selectedVoice && femaleVoiceScore(selectedVoice) >= 100 ? 1.04 : 1.22;
-      utterance.rate = 0.95;
+      window.DorkVoice.apply(utterance, selectedVoice);
       utterance.onstart = () => { speech.started = performance.now(); speech.boundaryAt = speech.started; };
       utterance.onboundary = (event) => {
         speech.boundaryIndex = event.charIndex;
@@ -919,7 +918,7 @@
     }
   }
 
-  async function speakWithElevenLabs(message, voiceId) {
+  async function speakWithNaturalVoice(message, voiceId) {
     const requestController = new AbortController();
     state.pendingSpeech = requestController;
     setStatus('Thinking…');
@@ -937,13 +936,15 @@
       state.pendingSpeech = null;
       const encoded = atob(result.audioBase64);
       const audioBytes = Uint8Array.from(encoded, (character) => character.charCodeAt(0));
-      const audioUrl = URL.createObjectURL(new Blob([audioBytes], { type: 'audio/mpeg' }));
+      const audioMimeType = result.audioMimeType === 'audio/wav' ? 'audio/wav' : 'audio/mpeg';
+      const audioUrl = URL.createObjectURL(new Blob([audioBytes], { type: audioMimeType }));
       const audio = new Audio(audioUrl);
       const speech = createSpeechState(message, result.alignment, audio, audioUrl);
       state.speech = speech;
       audio.onplay = () => {
         if (state.speech !== speech) return;
         speech.started = performance.now();
+        if (Number.isFinite(audio.duration) && audio.duration > 0) speech.estimatedDuration = audio.duration * 1000;
         setStatus('Speaking');
       };
       audio.onended = () => finishSpeech(speech);
@@ -971,9 +972,9 @@
       state.gesture = null;
     }
     if (selection === 'natural:server') {
-      speakWithElevenLabs(message, null);
+      speakWithNaturalVoice(message, null);
     } else if (selection.startsWith('eleven:')) {
-      speakWithElevenLabs(message, selection.slice('eleven:'.length));
+      speakWithNaturalVoice(message, selection.slice('eleven:'.length));
     } else {
       speakWithBrowser(message);
     }

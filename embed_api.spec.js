@@ -54,7 +54,7 @@ async function main() {
     const status = await fetch(`${base}/api/embed/status`, { headers: { Origin: origin } });
     assert.equal(status.status, 200);
     assert.equal(status.headers.get('access-control-allow-origin'), '*');
-    assert.deepEqual(await status.json(), { chat: true, naturalVoice: true });
+    assert.deepEqual(await status.json(), { chat: true, naturalVoice: true, voiceProvider: 'openai' });
     const preflight = await fetch(`${base}/api/embed/chat`, { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' } });
     assert.equal(preflight.status, 204);
     assert.equal(preflight.headers.get('access-control-allow-headers'), 'Content-Type');
@@ -77,7 +77,7 @@ async function main() {
     const voice = await fetch(`${base}/api/embed/speech`, { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'Hello!' }) });
     assert.equal(voice.status, 200);
     assert.equal((await voice.json()).audioBase64, Buffer.from('fake-mp3').toString('base64'));
-    assert.equal(observed.voice, 'coral');
+    assert.equal(observed.voice, 'onyx');
     assert.equal((await fetch(`${base}/api/online/status`)).status, 401, 'Private API became public');
     assert.equal((await fetch(`${base}/api/embed/chat`, { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify(chatBody) })).status, 200);
     assert.equal((await fetch(`${base}/api/embed/chat`, { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify(chatBody) })).status, 429);
