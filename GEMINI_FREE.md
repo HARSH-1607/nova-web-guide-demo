@@ -1,6 +1,6 @@
 # Run Dork with Gemini's free tier
 
-The server supports the Gemini free tier for Dork's private Aura chat and public embed chat. The default model for this option is `gemini-3.5-flash-lite`. The browser provides the voice, so no paid speech provider is needed.
+The server defaults to the Gemini free tier for Dork's private Aura chat and public embed chat. Its default model is `gemini-3.5-flash-lite`. The browser provides the voice, so no paid speech provider is needed. An existing OpenAI key is not used unless `AI_CHAT_PROVIDER=openai` is set explicitly.
 
 1. In [Google AI Studio API Keys](https://aistudio.google.com/app/apikey), create a key in a **free-tier project**. Check the project's current quota in AI Studio. Do not send the key in chat or add it to GitHub.
 2. In the existing Render web service, open **Environment** and add `GEMINI_API_KEY` with the key as its value. Add `AI_CHAT_PROVIDER=gemini`, `GEMINI_MODEL=gemini-3.5-flash-lite`, `PAID_VOICE_ENABLED=false`, and `EMBED_AI_ENABLED=true`. Keep the existing `DEMO_PASSWORD`. Save and deploy. Changing `render.yaml` in Git alone does not update the environment of a service created manually.

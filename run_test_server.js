@@ -17,7 +17,7 @@ const MAX_TEXT_LENGTH = 240;
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const MAX_CHAT_HISTORY = 8;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
-const AI_CHAT_PROVIDER = process.env.AI_CHAT_PROVIDER || (process.env.GEMINI_API_KEY ? 'gemini' : 'openai');
+const AI_CHAT_PROVIDER = process.env.AI_CHAT_PROVIDER || 'gemini';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const GEMINI_API_URL = process.env.NODE_ENV === 'test' && process.env.GEMINI_TEST_API_URL
   ? process.env.GEMINI_TEST_API_URL : `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`;
