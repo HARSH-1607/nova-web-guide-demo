@@ -31,10 +31,9 @@
   const aiProvider = document.getElementById('aiProvider');
   const localModelRow = document.getElementById('localModelRow');
   const modelNotice = document.getElementById('modelNotice');
-  const chatHistory = document.getElementById('chatHistory');
-  const panelContent = document.querySelector('.panel-content');
-  const speechInput = document.getElementById('speechText');
-  const askButton = document.getElementById('askButton');
+  const caption = document.getElementById('dorkCaption');
+  const listenButton = document.getElementById('listenButton');
+  const panelToggle = document.getElementById('panelToggle');
   const guideHint = document.getElementById('guideHint');
   const skipGuideInline = document.getElementById('skipGuideInline');
   const guideHintText = document.getElementById('guideHintText');
@@ -61,6 +60,7 @@
   let providerChoiceTouched = false;
   let onlineModel = '';
   let providersChecked = false;
+  let actorClickCount = 0;
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = 'high';
   const state = {
@@ -77,9 +77,7 @@
     chatRequestController.abort();
     chatRequestController = null;
     chatRequestInFlight = false;
-    askButton.disabled = false;
-    askButton.textContent = 'Ask';
-    askButton.setAttribute('aria-label', 'Ask Dork');
+    listenButton.textContent = '🎙 Speak to Dork';
   }
   function revealSite() {
     if (!state.intro) return;
@@ -213,17 +211,12 @@
     updateProviderNotice();
   }
 
-  function addChatBubble(role, message) {
-    chatHistory.querySelector('.chat-empty')?.remove();
-    const bubble = document.createElement('div');
-    bubble.className = `chat-bubble ${role}`;
-    bubble.textContent = message;
-    chatHistory.append(bubble);
-    while (chatHistory.children.length > 20) chatHistory.firstElementChild.remove();
-    requestAnimationFrame(() => {
-      const overflow = bubble.getBoundingClientRect().bottom - panelContent.getBoundingClientRect().bottom + 8;
-      if (overflow > 0) panelContent.scrollTop += overflow;
-    });
+  function showDorkResponse(message) {
+    caption.textContent = message;
+    caption.title = message;
+    caption.classList.remove('caption-arrive');
+    void caption.offsetWidth;
+    caption.classList.add('caption-arrive');
   }
 
   const guideSteps = {
@@ -390,7 +383,7 @@
     state.guide = guide;
     skipGuideInline.hidden = false;
     const description = element.dataset.guideDescription || `Here is ${element.dataset.guideSpot}.`;
-    addChatBubble('assistant', description);
+    showDorkResponse(description);
     transitionToTarget(element, focus, () => {
       if (state.guide !== guide || guide.cancelled) return;
       guide.awaiting = true;
@@ -420,7 +413,7 @@
     window.dispatchEvent(new CustomEvent('nova:guide-target', { detail: { element: target } }));
     guide.targetElement = target;
     const instruction = step.text;
-    addChatBubble('assistant', instruction);
+    showDorkResponse(instruction);
     transitionToTarget(target, target, () => {
       if (state.guide !== guide || guide.cancelled) return;
       guide.awaiting = true;
@@ -443,7 +436,7 @@
     const priorLine = state.speech?.completion || Promise.resolve(true);
     priorLine.then((heard) => {
       if (!heard || state.guide !== guide || guide.cancelled) return;
-      addChatBubble('assistant', step.done);
+      showDorkResponse(step.done);
       if (step.target === 'contact') startGesture('joy', true);
       speak(step.done, true).then((completed) => {
         if (!completed || state.guide !== guide || guide.cancelled) return;
@@ -454,7 +447,7 @@
           document.body.classList.add('journey-complete');
           window.dispatchEvent(new Event('nova:tour-complete'));
           const finished = 'The tour is complete. Keep exploring any part of the website!';
-          addChatBubble('assistant', finished);
+          showDorkResponse(finished);
           speak(finished, true);
         } else endGuide();
       });
@@ -475,48 +468,40 @@
     guidePointerLine.setAttribute('y2', String(to.top + to.height * 0.5));
   }
 
-  async function askAI() {
-    const message = speechInput.value.trim();
+  async function askAI(rawMessage) {
+    const message = String(rawMessage || '').trim();
     if (!message) {
       if (chatRequestInFlight) {
         cancelChatRequest();
         state.gesture = null;
         setStatus('Ready to guide');
-        addChatBubble('assistant', 'Stopped. What would you like to explore next?');
+        showDorkResponse('Stopped. What would you like to explore next?');
       }
       return;
     }
     if (chatRequestInFlight) cancelChatRequest();
     if (/^(stop|cancel|skip)(?: (?:the )?(?:tour|walkthrough))?[.!]?$/i.test(message)) {
-      addChatBubble('user', message);
-      speechInput.value = '';
       endGuide();
-      addChatBubble('assistant', 'Okay, I stopped the walkthrough. Ask me when you want to start again.');
+      showDorkResponse('Okay, I stopped the walkthrough. Ask me when you want to start again.');
       speak('Okay, I stopped the walkthrough.', true);
       return;
     }
     if (/\b(enter|open|explore|browse)\b.*\b(site|website|page)\b/i.test(message)) {
-      addChatBubble('user', message);
-      speechInput.value = '';
       revealSite();
-      const reply = 'Welcome in! Tell me where you want to go, or ask me to show you the site.';
-      addChatBubble('assistant', reply);
+      const reply = 'Welcome in! Choose a destination below, or take the guided tour.';
+      showDorkResponse(reply);
       speak(reply, true);
       return;
     }
     if (state.intro && /\b(what can you do|how can you help|what do you do)\b/i.test(message)) {
-      addChatBubble('user', message);
-      speechInput.value = '';
-      const reply = 'I can answer questions, guide you to features or pricing, and point out buttons. You can explore the site whenever it opens. Try saying show me the site!';
-      addChatBubble('assistant', reply);
+      const reply = 'I can guide you to features, pricing, and contact, point out buttons, and show you a tour. Choose a moment below or use voice input if your browser supports it.';
+      showDorkResponse(reply);
       speak(reply, true);
       startGesture('point', true);
       return;
     }
     const guideRequest = classifyGuideRequest(message);
     if (guideRequest) {
-      addChatBubble('user', message);
-      speechInput.value = '';
       revealSite();
       beginGuide(guideRequest);
       return;
@@ -525,9 +510,7 @@
     if (actionRequest) {
       const wasGuiding = Boolean(state.guide);
       endGuide(wasGuiding);
-      addChatBubble('user', message);
-      addChatBubble('assistant', actionRequest.reply);
-      speechInput.value = '';
+      showDorkResponse(actionRequest.reply);
       speak(actionRequest.reply, wasGuiding);
       if (wasGuiding) state.onArrival = () => startGesture(actionRequest.gesture, true);
       else startGesture(actionRequest.gesture, true);
@@ -535,8 +518,6 @@
     }
     const landmark = findLandmark(message);
     if (landmark) {
-      addChatBubble('user', message);
-      speechInput.value = '';
       revealSite();
       showLandmark(landmark);
       return;
@@ -546,10 +527,8 @@
     const provider = aiProvider.value;
     const useOnline = provider === 'online';
     if (providersChecked && !(provider === 'device' ? onDeviceAvailable : useOnline ? onlineAvailable : localAvailable)) {
-      addChatBubble('user', message);
-      speechInput.value = '';
-      const help = 'AI chat is unavailable right now. I can still show you the site, pricing, features, contact, or a guided tour. Choose an available AI provider in settings to ask open questions.';
-      addChatBubble('assistant', help);
+      const help = 'AI answers are unavailable right now. The destination buttons and guided tour still work.';
+      showDorkResponse(help);
       modelNotice.classList.add('error');
       updateProviderNotice();
       setStatus('Ready to guide');
@@ -559,10 +538,7 @@
     chatRequestInFlight = true;
     const requestController = new AbortController();
     chatRequestController = requestController;
-    askButton.textContent = 'Stop';
-    askButton.setAttribute('aria-label', 'Stop or replace response');
-    addChatBubble('user', message);
-    speechInput.value = '';
+    listenButton.textContent = 'Stop response';
     startGesture('think', true);
     setStatus('Thinking…');
     modelNotice.classList.remove('error');
@@ -583,7 +559,7 @@
         if (!response.ok) throw new Error(result.error || 'The AI could not answer.');
       }
       if (chatRequestController !== requestController) return;
-      addChatBubble('assistant', result.reply);
+      showDorkResponse(result.reply);
       conversation.push({ role: 'user', content: message }, { role: 'assistant', content: result.reply });
       conversation = conversation.slice(-8);
       modelNotice.textContent = `Answered by ${result.model} · voice: ${voiceSelect.selectedOptions[0]?.textContent || 'browser'}`;
@@ -593,7 +569,7 @@
       if (requestController.signal.aborted || chatRequestController !== requestController) return;
       state.gesture = null;
       const detail = error.message || 'Could not contact the AI.';
-      addChatBubble('assistant', `I could not answer: ${detail}`);
+      showDorkResponse(`I could not answer: ${detail}`);
       modelNotice.classList.add('error');
       modelNotice.textContent = detail;
       setStatus('AI unavailable');
@@ -1085,7 +1061,7 @@
       };
       const response = responses[action];
       if (!response) return;
-      addChatBubble('assistant', response.text);
+      showDorkResponse(response.text);
       startGesture(response.gesture, true);
       speak(response.text, true);
       if (action === 'contact') document.querySelector('#contactForm [name="message"]')?.focus({ preventScroll: true });
@@ -1097,16 +1073,69 @@
   document.querySelectorAll('[data-integration-filter]').forEach((button) => {
     button.addEventListener('click', () => setIntegrationFilter(button.dataset.integrationFilter));
   });
-  document.getElementById('speechForm').addEventListener('submit', (event) => {
-    event.preventDefault();
-    askAI();
-  });
   document.querySelectorAll('[data-welcome-prompt]').forEach((button) => {
-    button.addEventListener('click', () => {
-      speechInput.value = button.dataset.welcomePrompt;
-      askAI();
-    });
+    button.addEventListener('click', () => askAI(button.dataset.welcomePrompt));
   });
+  document.querySelectorAll('[data-guide-command]').forEach((button) => {
+    button.addEventListener('click', () => askAI(button.dataset.guideCommand));
+  });
+  window.DorkGuide = Object.freeze({
+    ask: (message) => askAI(message),
+    open: () => revealSite(),
+    startTour: () => { revealSite(); beginGuide('tour'); }
+  });
+  panelToggle.addEventListener('click', () => {
+    const minimized = document.querySelector('.control-panel').classList.toggle('is-minimized');
+    panelToggle.setAttribute('aria-expanded', String(!minimized));
+    panelToggle.setAttribute('aria-label', minimized ? 'Show Dork controls' : 'Hide Dork controls');
+    panelToggle.textContent = minimized ? '+' : '−';
+    if (!state.guide && !state.intro) {
+      Object.assign(state, dockPosition());
+      placeActor();
+    }
+  });
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-GB';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    let listening = false;
+    let heardSpeech = false;
+    listenButton.hidden = false;
+    listenButton.addEventListener('click', () => {
+      if (chatRequestInFlight) { askAI(''); return; }
+      if (listening) { recognition.stop(); return; }
+      cancelSpeech();
+      heardSpeech = false;
+      try {
+        recognition.start();
+        listening = true;
+        listenButton.textContent = 'Listening… tap to stop';
+        setStatus('Listening…');
+      } catch {
+        setStatus('Voice input unavailable');
+      }
+    });
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+      if (!transcript) return;
+      heardSpeech = true;
+      listening = false;
+      listenButton.textContent = '🎙 Speak to Dork';
+      askAI(transcript);
+    };
+    recognition.onerror = (event) => {
+      listening = false;
+      listenButton.textContent = '🎙 Speak to Dork';
+      setStatus(event.error === 'not-allowed' ? 'Microphone access denied' : 'Voice input unavailable');
+    };
+    recognition.onend = () => {
+      listening = false;
+      listenButton.textContent = chatRequestInFlight ? 'Stop response' : '🎙 Speak to Dork';
+      if (!heardSpeech && status.textContent === 'Listening…') setStatus('Ready to guide');
+    };
+  }
   document.querySelectorAll('[data-avatar-gesture]').forEach((button) => {
     button.addEventListener('click', () => {
       cancelChatRequest();
@@ -1115,7 +1144,7 @@
       if (!reply) return;
       if (state.guide) endGuide(false);
       startGesture(type, true);
-      addChatBubble('assistant', reply);
+      showDorkResponse(reply);
       speak(reply, true);
     });
   });
@@ -1138,12 +1167,15 @@
   });
   modelSelect.addEventListener('change', updateProviderNotice);
   document.getElementById('avatarHit').addEventListener('click', () => {
-    if (!state.guide) {
-      speak(state.intro
-        ? 'Welcome to Aura! I am Dork, your guide. Ask me to show you the site, or tell me what you are curious about.'
-        : 'Hi! Type “show me the site” in chat and I will guide you.');
-      startGesture('wave', true);
-    }
+    if (state.guide) return;
+    const reactions = ['wave', 'nod', 'joy', 'dance'];
+    const gesture = reactions[actorClickCount++ % reactions.length];
+    const line = state.intro && actorClickCount === 1
+      ? 'Welcome to Aura! Choose Open the site or Take a tour to begin.'
+      : gestureResponses[gesture];
+    showDorkResponse(line);
+    speak(line, true);
+    startGesture(gesture, true);
   });
   voiceSelect.addEventListener('change', () => {
     voiceChoiceTouched = true;
@@ -1162,7 +1194,7 @@
   state.x = initial.x;
   state.y = initial.y;
   state.nextBlink = performance.now() + 2400;
-  addChatBubble('assistant', 'Welcome to Aura! I’m Dork. I can answer questions or take you on a guided tour. What would you like to explore?');
+  showDorkResponse('Welcome to Aura! I’m Dork. Pick a moment to explore with me.');
   placeActor();
   requestAnimationFrame(animate);
   renderVoiceOptions();

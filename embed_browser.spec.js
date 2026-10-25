@@ -211,29 +211,43 @@ async function main() {
     await waitFor('document.body.dataset.lastNovaStop === "contact"', 'Host API question');
     await evaluate('document.querySelector("#hostPricingButton").click()');
     await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Host page button integration');
-    await evaluate('const rootTest=document.createElement("iframe");rootTest.id="rootTest";rootTest.src="/";document.body.append(rootTest)');
+    await evaluate('const rootTest=document.createElement("iframe");rootTest.id="rootTest";rootTest.src="/";rootTest.style.cssText="position:fixed;inset:0;width:100vw;height:100dvh;border:0;z-index:2147483647";document.body.append(rootTest)');
     await waitFor('document.querySelector("#rootTest")?.contentDocument?.querySelector("#avatarActor")?.dataset.model === "Drok"', 'Starter page model');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#modelNotice").textContent.includes("Online AI ready")', 'Online AI default ready');
+    if (process.env.CAPTURE_STARTER_INTRO === '1') {
+      const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+      const output = path.join(os.tmpdir(), 'dork-starter-intro-preview.png');
+      fs.writeFileSync(output, Buffer.from(screenshot.data, 'base64'));
+      console.log(`Starter intro screenshot: ${output}`);
+    }
     assert.equal(await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#aiProvider").value'), 'online');
     assert.equal(await evaluate('getComputedStyle(document.querySelector("#rootTest").contentDocument.querySelector("#avatarCanvas")).display'), 'none');
-    await evaluate('(()=>{const doc=document.querySelector("#rootTest").contentDocument;doc.querySelector("#speechText").value="enter the website";doc.querySelector("#speechForm").requestSubmit()})()');
+    assert.equal(await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory, #speechForm")'), null, 'Starter page has no chat interface');
+    assert.ok(await evaluate('(()=>{const d=document.querySelector("#rootTest").contentDocument;const bottom=d.querySelector(".control-panel").getBoundingClientRect().bottom;return [...d.querySelectorAll("[data-welcome-prompt], #listenButton")].filter((element)=>getComputedStyle(element).display!=="none").every((element)=>element.getBoundingClientRect().bottom<=bottom-4)})()'), 'Welcome actions fit without clipping');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-welcome-prompt^=Enter]").click()');
     await waitFor('!document.querySelector("#rootTest").contentDocument.body.classList.contains("intro-active")', 'Starter site unlock');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-walkthrough-target=features]").click()');
-    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("vowel sounds together")', 'Independent feature action');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#dorkCaption").textContent.includes("vowel sounds together")', 'Independent feature action');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-walkthrough-target=pricing]").click()');
-    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("no live prices")', 'Independent pricing action');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#dorkCaption").textContent.includes("no live prices")', 'Independent pricing action');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-walkthrough-target=contact]").click()');
     await waitFor('document.querySelector("#rootTest").contentDocument.activeElement?.name === "message"', 'Independent contact action');
     await evaluate('(()=>{const select=document.querySelector("#rootTest").contentDocument.querySelector("#aiProvider");select.value="online";select.dispatchEvent(new Event("change"))})()');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#modelNotice").textContent.includes("Online AI ready")', 'Online provider ready for cancel test');
-    await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;const original=win.fetch.bind(win);win.fetch=(resource,options)=>String(resource).includes("/api/online/chat")?new Promise((_,reject)=>options.signal.addEventListener("abort",()=>reject(new DOMException("Aborted","AbortError")),{once:true})):original(resource,options);const doc=win.document;doc.querySelector("#speechText").value="Tell me about elephants";doc.querySelector("#speechForm").requestSubmit()})()');
-    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#askButton").textContent === "Stop"', 'Starter AI request can be stopped');
-    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#askButton").click()');
-    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("Stopped. What would you like")', 'Starter AI request stopped');
-    assert.ok(await evaluate('(()=>{const d=document.querySelector("#rootTest").contentDocument;const p=d.querySelector(".control-panel").getBoundingClientRect();const f=d.querySelector("#speechForm").getBoundingClientRect();return f.bottom<=p.bottom&&f.top>=p.top})()'), 'Starter composer remains visible');
+    await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;const original=win.fetch.bind(win);win.fetch=(resource,options)=>String(resource).includes("/api/online/chat")?new Promise((_,reject)=>options.signal.addEventListener("abort",()=>reject(new DOMException("Aborted","AbortError")),{once:true})):original(resource,options);win.DorkGuide.ask("Tell me about elephants")})()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#listenButton").textContent === "Stop response"', 'Voice AI request can be stopped');
+    await evaluate('document.querySelector("#rootTest").contentWindow.DorkGuide.ask("")');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#dorkCaption").textContent.includes("Stopped. What would you like")', 'Voice AI request stopped');
+    assert.ok(await evaluate('(()=>{const d=document.querySelector("#rootTest").contentDocument;const p=d.querySelector(".control-panel").getBoundingClientRect();return p.bottom<=innerHeight&&p.right<=innerWidth})()'), 'Character controls fit viewport');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#panelToggle").click()');
+    assert.ok(await evaluate('document.querySelector("#rootTest").contentDocument.querySelector(".control-panel").classList.contains("is-minimized")'), 'Controls minimize');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#panelToggle").click()');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#avatarHit").click()');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#avatarHit").click()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#avatarActor").dataset.animation === "nod"', 'Character tap cycles reactions');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-avatar-gesture=nod]").click()');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#avatarActor").dataset.animation === "nod"', 'Starter page nod');
-    await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;win.speechSynthesis.cancel();win.__spoken=[];win.speechSynthesis.speak=(utterance)=>{win.__spoken.push(utterance);utterance.onstart?.()};win.speechSynthesis.cancel=()=>{};const doc=win.document;doc.querySelector("#speechText").value="show me the site";doc.querySelector("#speechForm").requestSubmit()})()');
+    await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;win.speechSynthesis.cancel();win.__spoken=[];win.speechSynthesis.speak=(utterance)=>{win.__spoken.push(utterance);utterance.onstart?.()};win.speechSynthesis.cancel=()=>{};const doc=win.document;doc.querySelector(".site-actions button:first-child").click()})()');
     await waitFor('document.querySelector("#rootTest").contentWindow.__spoken.some((utterance)=>utterance.text.includes("Let me show you speech motion"))', 'First tour instruction speaks');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-walkthrough-target=features]").click()');
     await sleep(1900);
@@ -242,9 +256,9 @@ async function main() {
     await waitFor('document.querySelector("#rootTest").contentWindow.__spoken.length === 2', 'Step acknowledgement begins after instruction');
     assert.ok(await evaluate('document.querySelector("#rootTest").contentWindow.__spoken[1].text.includes("approximate mouth motion")'));
     await sleep(1900);
-    assert.equal(await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("Here is the pricing section")'), false, 'Next stop must wait for the whole acknowledgement');
+    assert.equal(await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#dorkCaption").textContent.includes("Here is the pricing section")'), false, 'Next stop must wait for the whole acknowledgement');
     await evaluate('document.querySelector("#rootTest").contentWindow.__spoken[1].onend()');
-    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("Here is the pricing section")', 'Tour advances after speech completion');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#dorkCaption").textContent.includes("Here is the pricing section")', 'Tour advances after speech completion');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#skipGuide").click()');
     if (process.env.CAPTURE_STARTER === '1') {
       await evaluate('document.querySelector("#rootTest").style.cssText="position:fixed;inset:0;width:100vw;height:100vh;border:0;z-index:2147483647"');
@@ -254,7 +268,7 @@ async function main() {
       fs.writeFileSync(output, Buffer.from(screenshot.data, 'base64'));
       console.log(`Starter screenshot: ${output}`);
     }
-    console.log('Browser test passed: both pages load the rigged model, reactions, cursor gaze, chat, tour, and widget controls.');
+    console.log('Browser test passed: the starter uses character controls and the portable widget keeps its chat, tour, and reactions.');
     await send('Page.navigate', { url: `http://127.0.0.1:${port}/embed/demo.html?personality=professional` });
     await sleep(500);
     await waitFor('document.querySelector("iframe")?.contentDocument?.querySelector(".panel-heading strong")?.textContent === "Mira"', 'Custom personality name');
