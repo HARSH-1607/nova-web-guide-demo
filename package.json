@@ -1,5 +1,5 @@
 {
-  "name": "nova-web-guide-demo",
+  "name": "dork-web-guide-demo",
   "version": "1.0.0",
   "private": true,
   "engines": {
@@ -7,7 +7,7 @@
   },
   "scripts": {
     "start": "node run_test_server.js",
-    "test": "node test_local_llm.js && node test_online_ai.js && node contact.spec.js && node embed.spec.js",
+    "test": "node test_local_llm.js && node test_online_ai.js && node contact.spec.js && node embed.spec.js && node embed_api.spec.js",
     "test:embed-browser": "node embed_browser.spec.js"
   }
 }

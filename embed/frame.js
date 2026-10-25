@@ -21,7 +21,11 @@
   const tourProgress = document.getElementById('tourProgress');
   const reactionToggle = document.getElementById('reactionToggle');
   const reactionChoices = document.getElementById('reactionChoices');
-  let voiceEnabled = true;
+  let voiceMode = 'browser';
+  let naturalVoiceAvailable = false;
+  let speechAudio = null;
+  let naturalAlignment = null;
+  let voicePending = false;
   let speakingUntil = 0;
   let speechVersion = 0;
   let spokenText = '';
@@ -38,7 +42,7 @@
   let destinations = [];
   let tourIndex = -1;
   let site = { title: 'this site', description: '', headline: '' };
-  let personality = { name: 'Nova', tone: 'friendly' };
+  let personality = { name: 'Dork', tone: 'friendly' };
   let history = [];
   let nextIdleGesture = performance.now() + 11000;
   let actorClicks = 0;
@@ -94,23 +98,22 @@
     reactionToggle.setAttribute('aria-expanded', 'false');
   }
 
-  function speak(message) {
-    const version = ++speechVersion;
-    spokenText = String(message || '');
-    speechStartedAt = performance.now();
-    speechBoundaryIndex = -1;
-    if (!voiceEnabled || !('speechSynthesis' in window)) {
-      speakingUntil = speechStartedAt + Math.min(10000, Math.max(1600, message.length * 52));
-      return;
-    }
-    speechSynthesis.cancel();
+  function stopVoice() {
+    window.speechSynthesis?.cancel();
+    if (speechAudio) { speechAudio.pause(); speechAudio.src = ''; speechAudio = null; }
+    naturalAlignment = null;
+    voicePending = false;
+  }
+
+  function browserSpeak(message, version) {
+    if (version !== speechVersion || voiceMode === 'off') return;
+    if (!('speechSynthesis' in window)) return;
     const utterance = new SpeechSynthesisUtterance(message);
     utterance.lang = 'en-US';
     utterance.rate = personality.tone === 'professional' ? 0.9 : personality.tone === 'playful' ? 1.05 : 0.95;
     const voices = speechSynthesis.getVoices();
     utterance.voice = voices.find((voice) => /\b(aria|jenny|zira|ava|samantha|victoria|sonia|female)\b/i.test(voice.name) && /^en/i.test(voice.lang))
       || voices.find((voice) => /^en/i.test(voice.lang)) || null;
-    speakingUntil = speechStartedAt + Math.min(15000, Math.max(1800, message.length * 65));
     utterance.onstart = () => {
       if (version !== speechVersion) return;
       speechStartedAt = performance.now();
@@ -121,17 +124,58 @@
       speechBoundaryIndex = event.charIndex;
       speechBoundaryAt = performance.now();
     };
-    utterance.onend = () => { if (version === speechVersion) { speakingUntil = 0; status.textContent = 'Ready to guide'; } };
-    utterance.onerror = () => { if (version === speechVersion) { speakingUntil = 0; status.textContent = 'Ready to guide'; } };
+    utterance.onend = utterance.onerror = () => { if (version === speechVersion) speakingUntil = 0; };
     speechSynthesis.speak(utterance);
+  }
+
+  async function speak(message) {
+    const version = ++speechVersion;
+    spokenText = String(message || '');
+    speechStartedAt = performance.now();
+    speechBoundaryIndex = -1;
+    stopVoice();
+    if (voiceMode === 'off') { speakingUntil = 0; return; }
+    speakingUntil = voiceMode === 'natural' && naturalVoiceAvailable ? 0
+      : speechStartedAt + Math.min(15000, Math.max(1800, message.length * 65));
+    if (voiceMode === 'natural' && naturalVoiceAvailable) {
+      voicePending = true;
+      try {
+        const response = await fetch('../api/embed/speech', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: spokenText.slice(0, 240) }), signal: AbortSignal.timeout(45000)
+        });
+        if (!response.ok) throw new Error('Natural voice unavailable');
+        const result = await response.json();
+        if (version !== speechVersion || voiceMode === 'off') return;
+        const audio = new Audio(`data:audio/mpeg;base64,${result.audioBase64}`);
+        speechAudio = audio;
+        naturalAlignment = result.alignment;
+        audio.onplay = () => {
+          if (version !== speechVersion) return;
+          voicePending = false;
+          speechStartedAt = performance.now();
+          speakingUntil = speechStartedAt + (Number.isFinite(audio.duration) ? audio.duration * 1000 : Math.max(1800, message.length * 65));
+        };
+        audio.onended = audio.onerror = () => { if (version === speechVersion) { speakingUntil = 0; speechAudio = null; naturalAlignment = null; } };
+        await audio.play();
+        return;
+      } catch { if (version !== speechVersion) return; naturalAlignment = null; speechAudio = null; voicePending = false; }
+    }
+    speakingUntil = performance.now() + Math.min(15000, Math.max(1800, message.length * 65));
+    browserSpeak(message, version);
   }
 
   function speechMouthFrame(now) {
     if (!spokenText) return 0;
     const duration = Math.max(1, speakingUntil - speechStartedAt);
     const estimated = Math.floor((now - speechStartedAt) / duration * spokenText.length);
-    const index = Math.min(spokenText.length - 1, Math.max(0,
+    let index = Math.min(spokenText.length - 1, Math.max(0,
       speechBoundaryIndex >= 0 ? speechBoundaryIndex + Math.floor((now - speechBoundaryAt) / 95) : estimated));
+    if (speechAudio && Array.isArray(naturalAlignment?.character_start_times_seconds)) {
+      const times = naturalAlignment.character_start_times_seconds;
+      const next = times.findIndex((time) => time > speechAudio.currentTime);
+      index = next < 0 ? Math.max(0, times.length - 1) : Math.max(0, next - 1);
+    }
     const letter = spokenText[index]?.toLowerCase();
     const cue = letter === 'a' ? 1 : letter === 'e' ? 2
       : letter === 'i' || letter === 'y' ? 3 : letter === 'o' ? 4
@@ -257,12 +301,22 @@
     status.textContent = 'Ready to guide';
     bubble('nova', 'Stopped. Ask me something else whenever you like.');
   });
+  function updateVoiceButton() {
+    soundToggle.textContent = voiceMode === 'natural' ? '✦' : voiceMode === 'browser' ? '♫' : '×';
+    soundToggle.title = `Voice: ${voiceMode}. Click to change`;
+    soundToggle.setAttribute('aria-label', `Voice: ${voiceMode}. Click to change`);
+  }
   soundToggle.addEventListener('click', () => {
-    voiceEnabled = !voiceEnabled;
-    soundToggle.textContent = voiceEnabled ? '♫' : '♪̸';
-    soundToggle.setAttribute('aria-label', voiceEnabled ? 'Turn voice off' : 'Turn voice on');
-    if (!voiceEnabled) { speechVersion++; speakingUntil = 0; window.speechSynthesis?.cancel(); }
+    voiceMode = naturalVoiceAvailable
+      ? voiceMode === 'natural' ? 'browser' : voiceMode === 'browser' ? 'off' : 'natural'
+      : voiceMode === 'browser' ? 'off' : 'browser';
+    speechVersion++; speakingUntil = 0; stopVoice(); updateVoiceButton();
   });
+  fetch('../api/embed/status').then((response) => response.ok ? response.json() : null).then((result) => {
+    naturalVoiceAvailable = Boolean(result?.naturalVoice);
+    if (naturalVoiceAvailable && voiceMode !== 'off') voiceMode = 'natural';
+    updateVoiceButton();
+  }).catch(() => updateVoiceButton());
   collapse.addEventListener('click', () => {
     document.body.classList.add('compact');
     restore.hidden = false;
@@ -344,7 +398,8 @@
     if (!reducedMotion && !gesture && !talking && !pending && now > nextIdleGesture) {
       startGesture(Math.random() < 0.55 ? 'nod' : 'think', 1500);
     }
-    if (talking) status.textContent = 'Speaking…';
+    if (voicePending) status.textContent = 'Preparing voice…';
+    else if (talking) status.textContent = 'Speaking…';
     else if (!pending) status.textContent = 'Ready to guide';
     window.Nova3D?.sync({
       walking: false,

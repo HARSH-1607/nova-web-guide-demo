@@ -48,6 +48,8 @@
   let availableVoices = [];
   let elevenVoices = [];
   let selectedVoice = null;
+  let naturalVoiceAvailable = false;
+  let voiceChoiceTouched = false;
   let conversation = [];
   let chatRequestInFlight = false;
   let chatRequestController = null;
@@ -73,7 +75,7 @@
     chatRequestInFlight = false;
     askButton.disabled = false;
     askButton.textContent = 'Ask';
-    askButton.setAttribute('aria-label', 'Ask Nova');
+    askButton.setAttribute('aria-label', 'Ask Dork');
   }
   function revealSite() {
     if (!state.intro) return;
@@ -103,6 +105,9 @@
   }
   function renderVoiceOptions() {
     const previous = voiceSelect.value;
+    const naturalGroup = document.createElement('optgroup');
+    naturalGroup.label = 'Natural AI voice · uses credits';
+    naturalGroup.append(new Option('Dork · expressive', 'natural:server'));
     const browserGroup = document.createElement('optgroup');
     browserGroup.label = 'Browser voices · free';
     if (availableVoices.length) {
@@ -112,7 +117,7 @@
     } else {
       browserGroup.append(new Option('System default', 'browser:default'));
     }
-    const groups = [browserGroup];
+    const groups = naturalVoiceAvailable ? [naturalGroup, browserGroup] : [browserGroup];
     if (elevenVoices.length) {
       const elevenGroup = document.createElement('optgroup');
       elevenGroup.label = 'ElevenLabs voices · uses credits';
@@ -148,9 +153,9 @@
         return bFemale - aFemale || a.name.localeCompare(b.name);
       });
       renderVoiceOptions();
-      voiceNotice.textContent = `${elevenVoices.length} ElevenLabs voices available. Selecting one uses API credits when you press Speak.`;
+      voiceNotice.textContent = `${elevenVoices.length} ElevenLabs voices available. Natural and ElevenLabs voices are AI generated and use credits.`;
     } catch (error) {
-      voiceNotice.textContent = 'Browser voices are ready. Set ELEVENLABS_API_KEY on the local server to add ElevenLabs voices.';
+      voiceNotice.textContent = 'Natural voice is AI generated when available. Browser voices work offline.';
     }
   }
 
@@ -172,6 +177,13 @@
       onlineAvailable = response.ok && result.available === true;
       onlineModel = typeof result.model === 'string' ? result.model : '';
     } catch { onlineAvailable = false; }
+    try {
+      const response = await fetch('/api/embed/status', { cache: 'no-store' });
+      naturalVoiceAvailable = response.ok && (await response.json()).naturalVoice === true;
+      renderVoiceOptions();
+      if (naturalVoiceAvailable && !voiceChoiceTouched) voiceSelect.value = 'natural:server';
+      if (naturalVoiceAvailable) voiceNotice.textContent = 'Dork’s natural voice is AI generated and uses credits. Browser voices work offline.';
+    } catch { naturalVoiceAvailable = false; }
     try {
       const response = await fetch('/api/llm/models', { cache: 'no-store' });
       const result = await response.json();
@@ -238,9 +250,9 @@
   }
 
   const workflowContent = {
-    listen: { badge: 'STEP 01 · LISTEN', title: 'Start with a question.', text: '“Where can I learn about pricing?” is enough. Nova can recognize this page’s named destinations without needing an AI response first.' },
-    guide: { badge: 'STEP 02 · GUIDE', title: 'See the destination.', text: 'Nova scrolls to the right section, teleports next to it, and points with a visible highlight and guide line.' },
-    confirm: { badge: 'STEP 03 · CONFIRM', title: 'Finish with your click.', text: 'Nova waits while the visitor chooses the highlighted button. The tour then moves to the next step or returns home.' }
+    listen: { badge: 'STEP 01 · LISTEN', title: 'Start with a question.', text: '“Where can I learn about pricing?” is enough. Dork can recognize this page’s named destinations without needing an AI response first.' },
+    guide: { badge: 'STEP 02 · GUIDE', title: 'See the destination.', text: 'Dork scrolls to the right section, teleports next to it, and points with a visible highlight and guide line.' },
+    confirm: { badge: 'STEP 03 · CONFIRM', title: 'Finish with your click.', text: 'Dork waits while the visitor chooses the highlighted button. The tour then moves to the next step or returns home.' }
   };
 
   function setWorkflowStep(name) {
@@ -534,7 +546,7 @@
     startGesture('think', true);
     setStatus('Thinking…');
     modelNotice.classList.remove('error');
-    modelNotice.textContent = useOnline ? 'Nova is thinking online…' : 'Nova is thinking on your local model…';
+    modelNotice.textContent = useOnline ? 'Dork is thinking online…' : 'Dork is thinking on your local model…';
     try {
       const response = await fetch(useOnline ? '/api/online/chat' : '/api/llm/chat', {
         method: 'POST',
@@ -883,15 +895,15 @@
     state.pendingSpeech = requestController;
     setStatus('Thinking…');
     try {
-      const response = await fetch('/api/speech', {
+      const response = await fetch(voiceId ? '/api/speech' : '/api/embed/speech', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: message, voiceId }),
+        body: JSON.stringify(voiceId ? { text: message, voiceId } : { text: message }),
         signal: requestController.signal,
         cache: 'no-store'
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'ElevenLabs could not generate speech.');
+      if (!response.ok) throw new Error(result.error || 'Natural voice could not generate speech.');
       if (state.pendingSpeech !== requestController) return;
       state.pendingSpeech = null;
       const encoded = atob(result.audioBase64);
@@ -914,8 +926,8 @@
     } catch (error) {
       if (requestController.signal.aborted) return;
       cancelSpeech();
-      setStatus('Voice unavailable');
-      voiceNotice.textContent = error.message || 'ElevenLabs speech failed. Try a browser voice.';
+      voiceNotice.textContent = `${error.message || 'Natural voice failed.'} Using a browser voice.`;
+      speakWithBrowser(message);
     }
   }
 
@@ -929,7 +941,9 @@
       state.onArrival = null;
       state.gesture = null;
     }
-    if (selection.startsWith('eleven:')) {
+    if (selection === 'natural:server') {
+      speakWithElevenLabs(message, null);
+    } else if (selection.startsWith('eleven:')) {
       speakWithElevenLabs(message, selection.slice('eleven:'.length));
     } else {
       speakWithBrowser(message);
@@ -1087,12 +1101,13 @@
   document.getElementById('avatarHit').addEventListener('click', () => {
     if (!state.guide) {
       speak(state.intro
-        ? 'Welcome to Aura! I am Nova, your guide. Ask me to show you the site, or tell me what you are curious about.'
+        ? 'Welcome to Aura! I am Dork, your guide. Ask me to show you the site, or tell me what you are curious about.'
         : 'Hi! Type “show me the site” in chat and I will guide you.');
       startGesture('wave', true);
     }
   });
   voiceSelect.addEventListener('change', () => {
+    voiceChoiceTouched = true;
     const browserIndex = Number(voiceSelect.value.split(':')[1]);
     selectedVoice = voiceSelect.value.startsWith('browser:') ? availableVoices[browserIndex] || null : null;
   });
@@ -1108,7 +1123,7 @@
   state.x = initial.x;
   state.y = initial.y;
   state.nextBlink = performance.now() + 2400;
-  addChatBubble('assistant', 'Welcome to Aura! I’m Nova. I can answer questions or take you on a guided tour. What would you like to explore?');
+  addChatBubble('assistant', 'Welcome to Aura! I’m Dork. I can answer questions or take you on a guided tour. What would you like to explore?');
   placeActor();
   requestAnimationFrame(animate);
   renderVoiceOptions();

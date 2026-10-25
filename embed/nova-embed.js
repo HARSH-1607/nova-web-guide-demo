@@ -1,16 +1,16 @@
-/* Drop-in Nova widget. Set window.NovaEmbedConfig before loading this script. */
+/* Drop-in Dork widget. Set window.DorkEmbedConfig (or the legacy NovaEmbedConfig) before loading. */
 (() => {
   'use strict';
   if (window.NovaEmbed) return;
 
   const script = document.currentScript;
   const base = new URL('./', script.src);
-  const config = window.NovaEmbedConfig || {};
+  const config = window.DorkEmbedConfig || window.NovaEmbedConfig || {};
   const clean = (value, limit) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
   const personalityOptions = typeof config.personality === 'string'
     ? { tone: config.personality } : config.personality || {};
   const personality = {
-    name: clean(personalityOptions.name, 32) || 'Nova',
+    name: clean(personalityOptions.name, 32) || 'Dork',
     tone: ['friendly', 'professional', 'playful'].includes(personalityOptions.tone)
       ? personalityOptions.tone : 'friendly',
     greeting: clean(personalityOptions.greeting, 240),
@@ -169,7 +169,7 @@
   async function answer(question, history = []) {
     const items = targets();
     const match = matchTarget(question, items);
-    if (match) return navigateTo(match);
+    if (match && (config.ai === false || /\b(show|go|take|find|where|visit|scroll|open|point|lead)\b/i.test(question))) return navigateTo(match);
     const site = siteInfo();
     if (/\b(what is this (site|website|page)|what (do you|does this site) (do|offer)|tell me about (this |the )?(site|website|company))\b/i.test(question)) {
       const summary = site.description || site.headline || `${site.title} has sections I can guide you through.`;
@@ -202,6 +202,30 @@
         return { text: custom.text.slice(0, 1000), gesture: custom.gesture || 'point', target: destination?.key, navigateTarget: destination?.key };
       }
     }
+    if (config.ai !== false) {
+      const response = await fetch(new URL('../api/embed/chat', base), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: question.slice(0, 240),
+          history: history.slice(-8).map((turn) => ({ role: turn.role, content: turn.content.slice(0, 240) })),
+          site, personality,
+          targets: items.slice(0, 12).map(({ key, label, description }) => ({ key, label, description }))
+        }),
+        signal: AbortSignal.timeout(45000)
+      });
+      if (response.ok) {
+        const result = await response.json();
+        const destination = items.find((item) => item.key === result.target);
+        return { text: String(result.reply || '').slice(0, 240), gesture: destination ? 'point' : 'nod',
+          target: destination?.key, navigateTarget: destination?.key };
+      }
+      if (response.status !== 401 && response.status !== 503 && response.status !== 404) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || 'Chat is temporarily unavailable.');
+      }
+    }
+    if (match) return navigateTo(match);
     const names = items.slice(0, 3).map((item) => item.key).join(', ');
     const lead = personality.tone === 'professional' ? `On ${site.title}, I can guide you to ${names}.`
       : personality.tone === 'playful' ? `Let's explore ${site.title}! Try ${names}.`
@@ -233,8 +257,8 @@
         send('reply', { text: result.text, gesture: result.gesture, target: result.target, requestId });
       } catch (error) {
         if (currentRequestId !== requestId) return;
-        console.warn('Nova embed response failed:', error);
-        send('reply', { text: 'I could not answer that right now. Try a section name, or use the tour controls.', requestId });
+        console.warn('Dork embed response failed:', error);
+        send('reply', { text: error.message || 'I could not answer that right now. Try a section name, or use the tour controls.', requestId });
       }
     } else if (event.data.type === 'navigate') {
       const key = typeof event.data.key === 'string' ? event.data.key : '';
@@ -277,6 +301,7 @@
       return item ? askFromHost(`Show me ${item.key}`) : false;
     },
     refreshTargets() { send('init', { site: siteInfo(), personality, greeting: greeting(), targets: targets().map(({ key, label }) => ({ key, label })) }); },
-    destroy() { clearTimeout(highlightTimer); clearHighlight(); cancelAnimationFrame(pointerFrame); window.removeEventListener('message', onMessage); window.removeEventListener('resize', sizeFrame); window.removeEventListener('pointermove', onPointerMove); window.removeEventListener('blur', onBlur); frame.remove(); delete window.NovaEmbed; }
+    destroy() { clearTimeout(highlightTimer); clearHighlight(); cancelAnimationFrame(pointerFrame); window.removeEventListener('message', onMessage); window.removeEventListener('resize', sizeFrame); window.removeEventListener('pointermove', onPointerMove); window.removeEventListener('blur', onBlur); frame.remove(); delete window.NovaEmbed; delete window.DorkEmbed; }
   };
+  window.DorkEmbed = window.NovaEmbed;
 })();

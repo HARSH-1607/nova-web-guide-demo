@@ -29,7 +29,7 @@ async function main() {
   });
   const independentHost = http.createServer((_request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end(`<!doctype html><title>Independent host</title><main><section id="pricing" data-nova-guide="pricing" data-nova-description="Plans on an independent origin"><h1>Pricing</h1></section><section><h2>Shipping &amp; Returns</h2><p>Delivery and returns information.</p></section></main><script>window.NovaEmbedConfig={onNavigate(key){document.body.dataset.lastNovaStop=key}}</script><script src="http://127.0.0.1:${port}/embed/nova-embed.js"></script>`);
+    response.end(`<!doctype html><title>Independent host</title><main><section id="pricing" data-nova-guide="pricing" data-nova-description="Plans on an independent origin"><h1>Pricing</h1></section><section><h2>Shipping &amp; Returns</h2><p>Delivery and returns information.</p></section></main><script>window.DorkEmbedConfig={onNavigate(key){document.body.dataset.lastNovaStop=key}}</script><script src="http://127.0.0.1:${port}/embed/nova-embed.js"></script>`);
   });
   await new Promise((resolve) => independentHost.listen(hostPort, '127.0.0.1', resolve));
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-embed-'));
@@ -82,7 +82,7 @@ async function main() {
       }
       throw new Error(`${label} timed out`);
     }
-    await waitFor('document.querySelector("iframe")?.contentDocument?.querySelector("#messages")?.textContent.includes("Nova")', 'Widget greeting');
+    await waitFor('document.querySelector("iframe")?.contentDocument?.querySelector("#messages")?.textContent.includes("Dork")', 'Widget greeting');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.model === "Drok"', 'Blender Drok model');
     assert.equal(await evaluate('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.renderer'), 'three');
     assert.equal(await evaluate('document.querySelector("iframe").contentWindow.performance.getEntriesByType("resource").some((entry) => /RobotExpressive|robot-avatar/.test(entry.name))'), false);
@@ -129,18 +129,18 @@ async function main() {
     await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="how much are the plans";doc.querySelector("#questionForm").requestSubmit()})()');
     await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Pricing synonym navigation');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("sample plans")', 'Pricing answer');
-    await evaluate('window.NovaEmbedConfig.onQuestion=()=>new Promise((resolve)=>setTimeout(()=>resolve({text:"late answer that should be ignored",target:"home"}),300))');
+    await evaluate('window.DorkEmbedConfig.onQuestion=()=>new Promise((resolve)=>setTimeout(()=>resolve({text:"late answer that should be ignored",target:"home"}),300))');
     await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="quantum pancakes";doc.querySelector("#questionForm").requestSubmit()})()');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#send").textContent === "×"', 'Pending question can be canceled');
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("#send").click()');
     await sleep(450);
     assert.equal(await evaluate('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("late answer that should be ignored")'), false);
     assert.equal(await evaluate('document.body.dataset.lastNovaStop'), 'pricing');
-    await evaluate('window.NovaEmbedConfig.onQuestion=async()=>({text:"I found the contact section for you.",target:"contact"})');
+    await evaluate('window.DorkEmbedConfig.onQuestion=async()=>({text:"I found the contact section for you.",target:"contact"})');
     await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="quantum pancakes";doc.querySelector("#questionForm").requestSubmit()})()');
     await waitFor('document.body.dataset.lastNovaStop === "contact"', 'Custom callback target navigation');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("I found the contact section")', 'Custom callback reply');
-    await evaluate('delete window.NovaEmbedConfig.onQuestion');
+    await evaluate('delete window.DorkEmbedConfig.onQuestion');
     if (process.env.CAPTURE_EMBED === '1') {
       if (process.env.CAPTURE_MOVES === '1') await evaluate('document.querySelector("iframe").contentDocument.querySelector("#reactionToggle").click()');
       console.log('Widget layout:', await evaluate('(()=>{const p=document.querySelector("iframe").contentDocument.querySelector(".panel");return {height:p.clientHeight,scrollHeight:p.scrollHeight,maxHeight:getComputedStyle(p).maxHeight}})()'));
@@ -149,21 +149,21 @@ async function main() {
       fs.writeFileSync(output, Buffer.from(screenshot.data, 'base64'));
       console.log(`Embed screenshot: ${output}`);
     }
-    await evaluate('window.NovaEmbed.hide()');
+    await evaluate('window.DorkEmbed.hide()');
     assert.ok(await evaluate('document.querySelector("iframe").hidden'));
-    await evaluate('window.NovaEmbed.show()');
+    await evaluate('window.DorkEmbed.show()');
     assert.ok(await evaluate('!document.querySelector("iframe").hidden'));
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("#collapse").click()');
     await waitFor('document.querySelector("iframe").style.width === "68px"', 'Widget minimize');
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("#restore").click()');
     await waitFor('document.querySelector("iframe").style.width !== "68px"', 'Widget restore');
-    assert.equal(await evaluate('window.NovaEmbed.navigate("missing-section")'), false);
+    assert.equal(await evaluate('window.DorkEmbed.navigate("missing-section")'), false);
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("#collapse").click()');
     await waitFor('document.querySelector("iframe").style.width === "68px"', 'Widget minimized before host API');
-    assert.equal(await evaluate('window.NovaEmbed.navigate("features")'), true);
+    assert.equal(await evaluate('window.DorkEmbed.navigate("features")'), true);
     await waitFor('document.querySelector("iframe").style.width !== "68px" && !document.querySelector("iframe").contentDocument.body.classList.contains("compact")', 'Host API reopens widget');
     await waitFor('document.body.dataset.lastNovaStop === "features"', 'Host API destination');
-    assert.equal(await evaluate('window.NovaEmbed.ask("show contact")'), true);
+    assert.equal(await evaluate('window.DorkEmbed.ask("show contact")'), true);
     await waitFor('document.body.dataset.lastNovaStop === "contact"', 'Host API question');
     await evaluate('document.querySelector("#hostPricingButton").click()');
     await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Host page button integration');
@@ -199,12 +199,12 @@ async function main() {
     await waitFor('document.querySelector("iframe")?.contentDocument?.querySelector(".panel-heading strong")?.textContent === "Mira"', 'Custom personality name');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("A small sample shop")', 'Site-specific greeting');
     await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="what is this site";doc.querySelector("#questionForm").requestSubmit()})()');
-    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("Sample Shop · Nova embed demo: A small sample shop")', 'Site metadata answer');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("Sample Shop · Dork embed demo: A small sample shop")', 'Site metadata answer');
     await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="show pricing";doc.querySelector("#questionForm").requestSubmit()})()');
     await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Personalized section navigation');
     await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="tell me more about that";doc.querySelector("#questionForm").requestSubmit()})()');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").lastElementChild?.textContent.includes("Pricing: Here are the sample plans")', 'Contextual follow-up');
-    await evaluate('window.NovaEmbedConfig.onQuestion=(_question,_destinations,context)=>{document.body.dataset.personaContext=JSON.stringify(context);return "Custom answer."}');
+    await evaluate('window.DorkEmbedConfig.onQuestion=(_question,_destinations,context)=>{document.body.dataset.personaContext=JSON.stringify(context);return "Custom answer."}');
     await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="quantum pancakes";doc.querySelector("#questionForm").requestSubmit()})()');
     await waitFor('Boolean(document.body.dataset.personaContext)', 'AI callback receives site and personality');
     assert.equal(await evaluate('JSON.parse(document.body.dataset.personaContext).personality.name'), 'Mira');
@@ -213,13 +213,13 @@ async function main() {
     assert.ok(await evaluate('JSON.parse(document.body.dataset.personaContext).history.length > 0'));
     await send('Page.navigate', { url: `http://127.0.0.1:${hostPort}/` });
     await sleep(500);
-    await waitFor('window.NovaEmbed && document.querySelector("iframe")', 'Independent host installation');
+    await waitFor('window.DorkEmbed && document.querySelector("iframe")', 'Independent host installation');
     assert.equal(await evaluate('new URL(document.querySelector("iframe").src).port'), String(port));
-    assert.equal(await evaluate('window.NovaEmbed.navigate("pricing")'), true);
+    assert.equal(await evaluate('window.DorkEmbed.navigate("pricing")'), true);
     await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Cross-origin host navigation');
-    assert.equal(await evaluate('window.NovaEmbed.navigate("shipping-returns")'), true);
+    assert.equal(await evaluate('window.DorkEmbed.navigate("shipping-returns")'), true);
     await waitFor('document.body.dataset.lastNovaStop === "shipping-returns"', 'Automatic section discovery without an ID');
-    console.log('Cross-origin install passed: independent host and Nova iframe exchanged guide actions.');
+    console.log('Cross-origin install passed: independent host and Dork iframe exchanged guide actions.');
   } finally {
     socket?.close();
     chrome?.kill();

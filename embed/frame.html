@@ -4,18 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0f19">
-  <title>Nova guide</title>
+  <title>Dork guide</title>
   <link rel="stylesheet" href="frame.css">
   <script type="importmap">{"imports":{"three":"../vendor/three.module.js"}}</script>
   <script src="frame.js" defer></script>
   <script type="module" src="../avatar3d.js"></script>
 </head>
 <body>
-  <div id="avatarActor" class="actor" role="button" tabindex="0" aria-label="Wave to Nova">
+  <div id="avatarActor" class="actor" role="button" tabindex="0" aria-label="Wave to Dork">
     <img class="fallback-character" src="../models/Drok_Web_Avatar_Transparent.png" alt="" aria-hidden="true">
     <canvas id="avatar3dCanvas" aria-hidden="true"></canvas>
   </div>
-  <div class="reaction-menu" aria-label="Nova's moves">
+  <div class="reaction-menu" aria-label="Dork's moves">
     <div id="reactionChoices" class="reaction-choices" hidden>
       <button type="button" data-gesture="wave">👋 Wave</button>
       <button type="button" data-gesture="nod">✓ Nod</button>
@@ -28,14 +28,15 @@
     </div>
     <button id="reactionToggle" type="button" aria-expanded="false" aria-controls="reactionChoices">✦ Moves</button>
   </div>
-  <section class="panel" aria-label="Chat with Nova">
-    <div class="panel-heading"><span class="status-dot" aria-hidden="true"></span><div><strong>Nova</strong><small id="status">Ready to guide</small></div><button id="soundToggle" type="button" aria-label="Turn voice off" title="Toggle voice">♫</button><button id="collapse" type="button" aria-label="Minimize Nova" title="Minimize Nova">−</button></div>
+  <section class="panel" aria-label="Chat with Dork">
+    <div class="panel-heading"><span class="status-dot" aria-hidden="true"></span><div><strong>Dork</strong><small id="status">Ready to guide</small></div><button id="soundToggle" type="button" aria-label="Voice: browser. Click to change" title="Voice: browser. Click to change">♫</button><button id="collapse" type="button" aria-label="Minimize Dork" title="Minimize Dork">−</button></div>
+    <small class="voice-disclosure">Voice is AI generated when natural mode is on.</small>
     <div id="messages" class="messages" role="log" aria-live="polite"></div>
-    <div class="tour-start-row"><button id="startTour" type="button">Take a tour <span aria-hidden="true">→</span></button><span id="tourHint">Explore this site with Nova</span></div>
+    <div class="tour-start-row"><button id="startTour" type="button">Take a tour <span aria-hidden="true">→</span></button><span id="tourHint">Explore this site with Dork</span></div>
     <div id="tourControls" class="tour-controls" hidden><button id="tourPrevious" type="button" aria-label="Previous tour stop">←</button><span id="tourProgress" aria-live="polite"></span><button id="tourNext" type="button" aria-label="Next tour stop">Next →</button><button id="tourExit" type="button" aria-label="End tour">×</button></div>
     <div id="prompts" class="prompts" aria-label="Suggested destinations"></div>
-    <form id="questionForm" class="question-form"><label for="question">Ask Nova</label><div><input id="question" type="text" maxlength="500" autocomplete="off" placeholder="Show me around…" required><button id="send" type="submit" aria-label="Send message">↗</button></div></form>
+    <form id="questionForm" class="question-form"><label for="question">Ask Dork</label><div><input id="question" type="text" maxlength="240" autocomplete="off" placeholder="Show me around…" required><button id="send" type="submit" aria-label="Send message">↗</button></div></form>
   </section>
-  <button id="restore" class="restore" type="button" aria-label="Open Nova guide" title="Open Nova guide" hidden>✦</button>
+  <button id="restore" class="restore" type="button" aria-label="Open Dork guide" title="Open Dork guide" hidden>✦</button>
 </body>
 </html>
