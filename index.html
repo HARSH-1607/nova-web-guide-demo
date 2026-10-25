@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="cinematic.css">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+  <script src="dork-local-ai.js" defer></script>
   <script src="avatar.js" defer></script>
   <script src="cinematic.js" defer></script>
   <script src="contact.js" defer></script>
@@ -107,7 +108,7 @@
       <span class="eyebrow">05 / Trust &amp; control</span>
       <h2 id="trust-title">Magic you can <em>understand.</em></h2>
       <div class="trust-grid">
-        <article class="glass-card"><h3>Local answers</h3><p>When Ollama is running, chat responses are generated on this computer through the local test server.</p></article>
+        <article class="glass-card"><h3>Local answers</h3><p>On-device AI can run in supported desktop Chrome without provider credits. Ollama remains an option on a local server.</p></article>
         <article class="glass-card"><h3>Visible guidance</h3><p>Dork highlights the next target and waits for your click. It does not silently activate buttons for you.</p></article>
         <article class="glass-card"><h3>Voice options</h3><p>Dork can use an expressive AI generated voice when online chat is configured, or a browser voice as backup.</p></article>
       </div>
@@ -121,7 +122,7 @@
         <details><summary>When can I explore the site?</summary><p>As soon as Dork opens the website, you can use its controls freely. The guided tour is optional.</p></details>
         <details><summary>Can Dork go to a specific place?</summary><p>Yes. Try “go to the Aura logo,” “show me the workflow,” or “take me to integrations.”</p></details>
         <details><summary>Are the pricing and integrations live?</summary><p>No. They are placeholders and concept cards for this prototype.</p></details>
-        <details><summary>Does chat need a local AI model?</summary><p>Guided destinations work without one. Open-ended chat requires Ollama and a local model.</p></details>
+        <details><summary>Does chat need an API key?</summary><p>On-device AI runs in supported desktop Chrome without an API key. Guided destinations work in every browser.</p></details>
       </div>
     </section>
 
@@ -206,15 +207,15 @@
       <div class="speech-row"><input id="speechText" maxlength="240" placeholder="Show me the site…" autocomplete="off"><button id="askButton" class="button primary" type="submit" aria-label="Ask Dork">Ask</button></div>
     </form>
     <details class="guide-settings"><summary>Model &amp; voice settings</summary>
-      <div class="model-row"><label for="aiProvider">Chat AI</label><select id="aiProvider" aria-label="Chat AI provider"><option value="online">Online AI</option><option value="local">Local Ollama</option></select><button id="retryModels" type="button" aria-label="Retry AI connection" title="Retry connection">↻</button></div>
+      <div class="model-row"><label for="aiProvider">Chat AI</label><select id="aiProvider" aria-label="Chat AI provider"><option value="device">On-device AI · no credits</option><option value="online">Online AI</option><option value="local">Local Ollama</option></select><button id="retryModels" type="button" aria-label="Retry AI connection" title="Retry connection">↻</button></div>
       <div id="localModelRow" class="model-row"><label for="modelSelect">Local model</label><select id="modelSelect" aria-label="Local AI model"><option value="">Checking Ollama…</option></select></div>
       <p id="modelNotice" class="model-notice" aria-live="polite">Checking AI connections…</p>
-      <p class="model-notice">Online questions are sent to OpenAI and may use API credits. The key stays on your local server.</p>
+      <p class="model-notice">On-device AI runs in supported desktop Chrome and may download a model once. Online AI uses provider credits.</p>
       <div class="voice-row"><label for="voiceSelect">Voice</label><select id="voiceSelect" aria-label="Speaking voice"><option>Loading voices…</option></select></div>
       <p id="voiceNotice" class="voice-notice" aria-live="polite">The natural voice is AI generated and uses credits. Browser voices work offline.</p>
     </details>
   </aside>
 
-  <footer class="site-footer" inert>Character motion prototype · Choose online AI or private local Ollama chat.</footer>
+  <footer class="site-footer" inert>Character motion prototype · Choose on-device, online, or local Ollama chat.</footer>
 </body>
 </html>

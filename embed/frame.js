@@ -21,6 +21,8 @@
   const tourProgress = document.getElementById('tourProgress');
   const reactionToggle = document.getElementById('reactionToggle');
   const reactionChoices = document.getElementById('reactionChoices');
+  const localAIButton = document.getElementById('localAI');
+  let localMode = false;
   let voiceMode = 'browser';
   let naturalVoiceAvailable = false;
   let speechAudio = null;
@@ -42,7 +44,7 @@
   let destinations = [];
   let tourIndex = -1;
   let site = { title: 'this site', description: '', headline: '' };
-  let personality = { name: 'Dork', tone: 'friendly' };
+  let personality = { name: 'Dork', tone: 'friendly', instructions: '' };
   let history = [];
   let nextIdleGesture = performance.now() + 11000;
   let actorClicks = 0;
@@ -239,11 +241,27 @@
       else { bubble('visitor', question); bubble('nova', 'There are no guide stops on this page yet.'); }
       return;
     }
+    if (localMode && /\b(show|go|take|find|where|visit|scroll|open|point)\b/i.test(question)) {
+      const item = destinations.find((destination) => question.toLowerCase().includes(destination.key.toLowerCase())
+        || question.toLowerCase().includes(destination.label.toLowerCase()));
+      if (item) { bubble('visitor', question); post('navigate', { key: item.key, requestId: beginPending() }); return; }
+    }
     const previousDialogue = history.slice(-8);
     bubble('visitor', question);
     startGesture('think', 15000);
     status.textContent = 'Thinking…';
-    post('question', { question, history: previousDialogue, requestId: beginPending() });
+    const requestId = beginPending();
+    if (localMode) {
+      window.DorkLocalAI.answer(question, { site, personality, targets: destinations }, undefined,
+        (percent) => { if (requestId === activeRequestId) status.textContent = `Downloading local model… ${percent}%`; })
+        .then((text) => { if (requestId === activeRequestId) post('localAnswer', { text, requestId }); })
+        .catch((error) => {
+          if (requestId !== activeRequestId) return;
+          clearPending();
+          bubble('nova', `On-device AI could not answer: ${error.message}`);
+          status.textContent = 'Ready to guide';
+        });
+    } else post('question', { question, history: previousDialogue, requestId });
   }
 
   function updateTourControls() {
@@ -314,9 +332,31 @@
   });
   fetch('../api/embed/status').then((response) => response.ok ? response.json() : null).then((result) => {
     naturalVoiceAvailable = Boolean(result?.naturalVoice);
-    if (naturalVoiceAvailable && voiceMode !== 'off') voiceMode = 'natural';
+    if (naturalVoiceAvailable && voiceMode !== 'off' && !localMode) voiceMode = 'natural';
     updateVoiceButton();
   }).catch(() => updateVoiceButton());
+  window.DorkLocalAI.availability().then((value) => { localAIButton.hidden = value === 'unavailable'; });
+  localAIButton.addEventListener('click', () => {
+    if (localMode) {
+      localMode = false;
+      localAIButton.textContent = 'Use on-device AI · no credits';
+      status.textContent = 'Online chat selected';
+      return;
+    }
+    localMode = true;
+    voiceMode = 'browser'; stopVoice(); updateVoiceButton();
+    localAIButton.disabled = true;
+    localAIButton.textContent = 'Preparing on-device AI…';
+    window.DorkLocalAI.prepare({ site, personality, targets: destinations },
+      (percent) => { localAIButton.textContent = `Downloading model… ${percent}%`; })
+      .then(() => { localAIButton.disabled = false; localAIButton.textContent = 'On-device AI active ✓'; status.textContent = 'Private AI ready'; })
+      .catch((error) => {
+        localMode = false;
+        localAIButton.disabled = false;
+        localAIButton.textContent = 'Try on-device AI';
+        status.textContent = error.message;
+      });
+  });
   collapse.addEventListener('click', () => {
     document.body.classList.add('compact');
     restore.hidden = false;
@@ -351,7 +391,8 @@
       const incomingPersonality = event.data.personality;
       if (incomingPersonality && typeof incomingPersonality.name === 'string') personality = {
         name: incomingPersonality.name.slice(0, 32),
-        tone: ['friendly', 'professional', 'playful'].includes(incomingPersonality.tone) ? incomingPersonality.tone : 'friendly'
+        tone: ['friendly', 'professional', 'playful'].includes(incomingPersonality.tone) ? incomingPersonality.tone : 'friendly',
+        instructions: typeof incomingPersonality.instructions === 'string' ? incomingPersonality.instructions.slice(0, 300) : ''
       };
       document.querySelector('.panel-heading strong').textContent = personality.name;
       document.title = `${personality.name} guide`;

@@ -131,7 +131,7 @@ function publicEmbedAsset(pathname, method) {
   if (method !== 'GET') return false;
   return new Set([
     '/embed/nova-embed.js', '/embed/dork-embed.js', '/embed/frame.html', '/embed/frame.css', '/embed/frame.js', '/embed/demo.html',
-    '/avatar3d.js', '/drok-avatar.js',
+    '/avatar3d.js', '/drok-avatar.js', '/dork-local-ai.js',
     '/models/Drok_Web_Avatar.glb', '/models/Drok_Web_Avatar_Transparent.png',
     '/vendor/three.module.js', '/vendor/examples/jsm/loaders/GLTFLoader.js',
     '/vendor/examples/jsm/utils/BufferGeometryUtils.js', '/vendor/examples/jsm/utils/SkeletonUtils.js'
@@ -367,7 +367,7 @@ async function handleOnlineAi(request, response, pathname) {
     return sendJson(response, 503, { error: 'Online AI is not configured. Set OPENAI_API_KEY on the local server.' });
   }
   if (onlineRequestsInProgress >= 2) {
-    return sendJson(response, 429, { error: 'Nova is already answering. Please wait a moment.' });
+    return sendJson(response, 429, { error: 'Dork is already answering. Please wait a moment.' });
   }
   let chat;
   try { chat = validateChat(await readJsonBody(request)); }
@@ -394,7 +394,7 @@ async function handleOnlineAi(request, response, pathname) {
     if (!upstream.ok) {
       const status = upstream.status;
       const detail = status === 401 || status === 403 ? 'The online AI key is invalid or lacks access.'
-        : status === 429 ? 'Online AI is rate-limited or out of credits. Try again later or choose Local Ollama.'
+        : status === 429 ? 'Online AI has no available capacity. Choose On-device AI in settings on supported desktop Chrome, or ask Dork to show a section.'
           : `Online AI returned HTTP ${status}. Try again or choose Local Ollama.`;
       return sendJson(response, status === 401 || status === 403 || status === 429 ? status : 502, { error: detail });
     }
@@ -639,7 +639,7 @@ http.createServer((request, response) => {
   }
   if (rootDirectory === __dirname) {
     const publicPath = relativePath.replace(/\\/g, '/');
-    const allowedRootFiles = new Set(['index.html', 'styles.css', 'cinematic.css', 'avatar.js', 'cinematic.js', 'contact.js', 'avatar3d.js', 'drok-avatar.js']);
+    const allowedRootFiles = new Set(['index.html', 'styles.css', 'cinematic.css', 'avatar.js', 'cinematic.js', 'contact.js', 'avatar3d.js', 'drok-avatar.js', 'dork-local-ai.js']);
     const allowed = allowedRootFiles.has(publicPath)
       || /^embed\/(?:(?:nova|dork)-embed\.js|frame\.(?:html|css|js)|demo\.html)$/.test(publicPath)
       || /^avatar\/[a-z-]+\.webp$/.test(publicPath)

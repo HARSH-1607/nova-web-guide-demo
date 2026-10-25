@@ -55,6 +55,8 @@
   let chatRequestController = null;
   let onlineAvailable = false;
   let localAvailable = false;
+  let onDeviceAvailable = false;
+  let providerChoiceTouched = false;
   let onlineModel = '';
   let providersChecked = false;
   context.imageSmoothingEnabled = true;
@@ -160,17 +162,35 @@
   }
 
   function updateProviderNotice() {
-    const useOnline = aiProvider.value === 'online';
-    localModelRow.hidden = useOnline;
-    modelNotice.classList.toggle('error', useOnline ? !onlineAvailable : !localAvailable);
-    modelNotice.textContent = useOnline
-      ? onlineAvailable ? `Online AI ready · ${onlineModel}` : 'Online AI is not configured. Set OPENAI_API_KEY on the server, or choose Local Ollama.'
-      : localAvailable ? `Local Ollama ready · ${modelSelect.value}` : 'Ollama is unavailable or has no models. Start Ollama, install a model, and retry.';
+    const provider = aiProvider.value;
+    localModelRow.hidden = provider !== 'local';
+    modelNotice.classList.toggle('error', provider === 'device' ? !onDeviceAvailable : provider === 'online' ? !onlineAvailable : !localAvailable);
+    modelNotice.textContent = provider === 'device'
+      ? onDeviceAvailable ? 'On-device AI ready. The first question may download a model to your browser.' : 'On-device AI is unavailable on this browser or device.'
+      : provider === 'online' ? onlineAvailable ? `Online AI configured · ${onlineModel}. Provider credits may still be exhausted.` : 'Online AI is not configured.'
+        : localAvailable ? `Local Ollama ready · ${modelSelect.value}` : 'Ollama is unavailable or has no models.';
+  }
+
+  function mainAiContext() {
+    return {
+      site: { title: document.title, description: document.querySelector('meta[name="description"]')?.content || 'Aura is a prototype website for an interactive character guide.' },
+      personality: { name: 'Dork', tone: 'friendly', instructions: 'Be warm, concise, and honest about placeholder features and prices.' },
+      targets: [...document.querySelectorAll('[data-guide-spot]')].slice(0, 12).map((element) => ({
+        key: element.dataset.guideSpot, label: element.querySelector('h1,h2,h3')?.textContent?.trim().slice(0, 80) || element.dataset.guideSpot,
+        description: element.dataset.guideDescription || ''
+      }))
+    };
   }
 
   async function loadAIProviders() {
     modelNotice.classList.remove('error');
     modelNotice.textContent = 'Checking AI connections…';
+    onDeviceAvailable = Boolean(window.DorkLocalAI) && (await window.DorkLocalAI.availability()) !== 'unavailable';
+    aiProvider.querySelector('[value="device"]').disabled = !onDeviceAvailable;
+    if (onDeviceAvailable && !providerChoiceTouched) {
+      aiProvider.value = 'device';
+      modelNotice.textContent = 'On-device AI available. The first question may download the model.';
+    }
     try {
       const response = await fetch('/api/online/status', { cache: 'no-store' });
       const result = await response.json();
@@ -200,7 +220,10 @@
       localAvailable = false;
       modelSelect.replaceChildren(new Option('Ollama unavailable', ''));
     }
-    if (!onlineAvailable && localAvailable) aiProvider.value = 'local';
+    if (onDeviceAvailable && aiProvider.value === 'device') {
+      if (!voiceChoiceTouched) voiceSelect.value = [...voiceSelect.options].find((option) => option.value.startsWith('browser:'))?.value || 'browser:default';
+    } else if (!providerChoiceTouched && !onlineAvailable && localAvailable) aiProvider.value = 'local';
+    else if (!providerChoiceTouched && aiProvider.value === 'device') aiProvider.value = 'online';
     providersChecked = true;
     updateProviderNotice();
   }
@@ -524,8 +547,9 @@
     }
     const wasGuiding = Boolean(state.guide);
     endGuide(wasGuiding);
-    const useOnline = aiProvider.value === 'online';
-    if (providersChecked && !(useOnline ? onlineAvailable : localAvailable)) {
+    const provider = aiProvider.value;
+    const useOnline = provider === 'online';
+    if (providersChecked && !(provider === 'device' ? onDeviceAvailable : useOnline ? onlineAvailable : localAvailable)) {
       addChatBubble('user', message);
       speechInput.value = '';
       const help = 'AI chat is unavailable right now. I can still show you the site, pricing, features, contact, or a guided tour. Choose an available AI provider in settings to ask open questions.';
@@ -546,18 +570,23 @@
     startGesture('think', true);
     setStatus('Thinking…');
     modelNotice.classList.remove('error');
-    modelNotice.textContent = useOnline ? 'Dork is thinking online…' : 'Dork is thinking on your local model…';
+    modelNotice.textContent = provider === 'device' ? 'Dork is thinking on this device…' : useOnline ? 'Dork is thinking online…' : 'Dork is thinking on your local model…';
     try {
-      const response = await fetch(useOnline ? '/api/online/chat' : '/api/llm/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, model: modelSelect.value, history: conversation.slice(-8) }),
-        signal: requestController.signal,
-        cache: 'no-store'
-      });
-      const result = await response.json();
+      let result;
+      if (provider === 'device') {
+        const reply = await window.DorkLocalAI.answer(message, mainAiContext(), requestController.signal,
+          (percent) => { if (chatRequestController === requestController) modelNotice.textContent = `Downloading on-device model… ${percent}%`; });
+        result = { reply, model: 'On-device AI' };
+      } else {
+        const response = await fetch(useOnline ? '/api/online/chat' : '/api/llm/chat', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, model: modelSelect.value, history: conversation.slice(-8) }),
+          signal: requestController.signal, cache: 'no-store'
+        });
+        result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'The AI could not answer.');
+      }
       if (chatRequestController !== requestController) return;
-      if (!response.ok) throw new Error(result.error || 'The AI could not answer.');
       addChatBubble('assistant', result.reply);
       conversation.push({ role: 'user', content: message }, { role: 'assistant', content: result.reply });
       conversation = conversation.slice(-8);
@@ -1096,7 +1125,16 @@
     showLandmark(element);
   });
   document.getElementById('retryModels').addEventListener('click', loadAIProviders);
-  aiProvider.addEventListener('change', updateProviderNotice);
+  aiProvider.addEventListener('change', () => {
+    providerChoiceTouched = true;
+    updateProviderNotice();
+    if (aiProvider.value === 'device') {
+      window.DorkLocalAI.prepare(mainAiContext(), (percent) => { modelNotice.textContent = `Downloading on-device model… ${percent}%`; })
+        .then(() => { modelNotice.textContent = 'On-device AI ready.'; })
+        .catch((error) => { modelNotice.classList.add('error'); modelNotice.textContent = error.message; });
+      if (!voiceChoiceTouched) voiceSelect.value = [...voiceSelect.options].find((option) => option.value.startsWith('browser:'))?.value || 'browser:default';
+    }
+  });
   modelSelect.addEventListener('change', updateProviderNotice);
   document.getElementById('avatarHit').addEventListener('click', () => {
     if (!state.guide) {

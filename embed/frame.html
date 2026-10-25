@@ -7,6 +7,7 @@
   <title>Dork guide</title>
   <link rel="stylesheet" href="frame.css">
   <script type="importmap">{"imports":{"three":"../vendor/three.module.js"}}</script>
+  <script src="../dork-local-ai.js" defer></script>
   <script src="frame.js" defer></script>
   <script type="module" src="../avatar3d.js"></script>
 </head>
@@ -36,6 +37,7 @@
     <div id="tourControls" class="tour-controls" hidden><button id="tourPrevious" type="button" aria-label="Previous tour stop">←</button><span id="tourProgress" aria-live="polite"></span><button id="tourNext" type="button" aria-label="Next tour stop">Next →</button><button id="tourExit" type="button" aria-label="End tour">×</button></div>
     <div id="prompts" class="prompts" aria-label="Suggested destinations"></div>
     <form id="questionForm" class="question-form"><label for="question">Ask Dork</label><div><input id="question" type="text" maxlength="240" autocomplete="off" placeholder="Show me around…" required><button id="send" type="submit" aria-label="Send message">↗</button></div></form>
+    <button id="localAI" class="local-ai" type="button" hidden>Use on-device AI · no credits</button>
   </section>
   <button id="restore" class="restore" type="button" aria-label="Open Dork guide" title="Open Dork guide" hidden>✦</button>
 </body>

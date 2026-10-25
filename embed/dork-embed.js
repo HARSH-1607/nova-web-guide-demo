@@ -38,7 +38,7 @@
   const frame = document.createElement('iframe');
   frame.title = config.title || `${personality.name} website guide`;
   frame.setAttribute('aria-label', frame.title);
-  frame.setAttribute('allow', 'autoplay');
+  frame.setAttribute('allow', 'autoplay; language-model');
   frame.src = new URL(`frame.html?channel=${encodeURIComponent(channel)}`, base).href;
   frame.style.cssText = 'position:fixed;right:8px;bottom:8px;border:0;background:transparent;z-index:2147483646;color-scheme:dark;';
   let compact = false;
@@ -237,7 +237,7 @@
     if (event.source !== frame.contentWindow || event.origin !== base.origin || event.data?.novaChannel !== channel) return;
     if (event.data.type === 'ready') {
       frameReady = true;
-      send('init', { site: siteInfo(), personality, greeting: greeting(), targets: targets().map(({ key, label }) => ({ key, label })) });
+      send('init', { site: siteInfo(), personality, greeting: greeting(), targets: targets().map(({ key, label, description }) => ({ key, label, description })) });
       if (queuedAsk) { send('hostAsk', { question: queuedAsk }); queuedAsk = null; }
     } else if (event.data.type === 'question') {
       const question = typeof event.data.question === 'string' ? event.data.question.trim().slice(0, 500) : '';
@@ -258,7 +258,9 @@
       } catch (error) {
         if (currentRequestId !== requestId) return;
         console.warn('Dork embed response failed:', error);
-        send('reply', { text: error.message || 'I could not answer that right now. Try a section name, or use the tour controls.', requestId });
+        send('reply', { text: /limit|rate|credit|unavailable/i.test(error.message || '')
+          ? 'Online AI is unavailable. You can use on-device AI in supported desktop Chrome, or ask me to show a section.'
+          : 'I could not answer that right now. Try a section name, or use the tour controls.', requestId });
       }
     } else if (event.data.type === 'navigate') {
       const key = typeof event.data.key === 'string' ? event.data.key : '';
@@ -266,6 +268,10 @@
       currentRequestId = requestId;
       const item = targets().find((target) => target.key === key);
       send('navigated', { ...(item ? navigateTo(item) : { text: 'That destination is no longer on this page.', gesture: 'wave' }), requestId });
+    } else if (event.data.type === 'localAnswer') {
+      const requestId = Number.isSafeInteger(event.data.requestId) ? event.data.requestId : 0;
+      const reply = typeof event.data.text === 'string' ? event.data.text.trim().slice(0, 240) : '';
+      if (requestId && reply) send('reply', { text: reply, gesture: 'nod', requestId });
     } else if (event.data.type === 'cancel') {
       if (event.data.requestId === currentRequestId) currentRequestId = 0;
     } else if (event.data.type === 'clearHighlight') {
@@ -300,7 +306,7 @@
       const item = targets().find((target) => target.key === key);
       return item ? askFromHost(`Show me ${item.key}`) : false;
     },
-    refreshTargets() { send('init', { site: siteInfo(), personality, greeting: greeting(), targets: targets().map(({ key, label }) => ({ key, label })) }); },
+    refreshTargets() { send('init', { site: siteInfo(), personality, greeting: greeting(), targets: targets().map(({ key, label, description }) => ({ key, label, description })) }); },
     destroy() { clearTimeout(highlightTimer); clearHighlight(); cancelAnimationFrame(pointerFrame); window.removeEventListener('message', onMessage); window.removeEventListener('resize', sizeFrame); window.removeEventListener('pointermove', onPointerMove); window.removeEventListener('blur', onBlur); frame.remove(); delete window.NovaEmbed; delete window.DorkEmbed; }
   };
   window.DorkEmbed = window.NovaEmbed;

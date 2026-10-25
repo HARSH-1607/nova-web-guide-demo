@@ -178,7 +178,8 @@ async function main() {
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("no live prices")', 'Independent pricing action');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-walkthrough-target=contact]").click()');
     await waitFor('document.querySelector("#rootTest").contentDocument.activeElement?.name === "message"', 'Independent contact action');
-    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#modelNotice").textContent.includes("Online AI ready")', 'Online provider ready for cancel test');
+    await evaluate('(()=>{const select=document.querySelector("#rootTest").contentDocument.querySelector("#aiProvider");select.value="online";select.dispatchEvent(new Event("change"))})()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#modelNotice").textContent.includes("Online AI configured")', 'Online provider ready for cancel test');
     await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;const original=win.fetch.bind(win);win.fetch=(resource,options)=>String(resource).includes("/api/online/chat")?new Promise((_,reject)=>options.signal.addEventListener("abort",()=>reject(new DOMException("Aborted","AbortError")),{once:true})):original(resource,options);const doc=win.document;doc.querySelector("#speechText").value="Tell me about elephants";doc.querySelector("#speechForm").requestSubmit()})()');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#askButton").textContent === "Stop"', 'Starter AI request can be stopped');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#askButton").click()');
