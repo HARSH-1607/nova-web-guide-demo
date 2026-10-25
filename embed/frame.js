@@ -31,6 +31,10 @@
   let voicePending = false;
   let speakingUntil = 0;
   let speechVersion = 0;
+  let speechActive = false;
+  let speechCompletion = Promise.resolve(true);
+  let settleSpeech = null;
+  let tourQueued = false;
   let spokenText = '';
   let speechStartedAt = 0;
   let speechBoundaryIndex = -1;
@@ -102,15 +106,32 @@
   }
 
   function stopVoice() {
+    settleSpeech?.(false);
+    settleSpeech = null;
+    speechActive = false;
+    speakingUntil = 0;
     window.speechSynthesis?.cancel();
     if (speechAudio) { speechAudio.pause(); speechAudio.src = ''; speechAudio = null; }
     naturalAlignment = null;
     voicePending = false;
+    updateTourControls();
+  }
+
+  function finishSpokenLine(version) {
+    if (version !== speechVersion) return;
+    speakingUntil = 0;
+    speechActive = false;
+    settleSpeech?.(true);
+    settleSpeech = null;
+    updateTourControls();
   }
 
   function browserSpeak(message, version) {
     if (version !== speechVersion || voiceMode === 'off') return;
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window)) {
+      setTimeout(() => finishSpokenLine(version), Math.min(15000, Math.max(1800, message.length * 65)));
+      return;
+    }
     const utterance = new SpeechSynthesisUtterance(message);
     window.DorkVoice.apply(utterance, window.DorkVoice.rank(speechSynthesis.getVoices())[0] || null, personality.tone);
     utterance.onstart = () => {
@@ -123,8 +144,9 @@
       speechBoundaryIndex = event.charIndex;
       speechBoundaryAt = performance.now();
     };
-    utterance.onend = utterance.onerror = () => { if (version === speechVersion) speakingUntil = 0; };
+    utterance.onend = utterance.onerror = () => finishSpokenLine(version);
     speechSynthesis.speak(utterance);
+    setTimeout(() => finishSpokenLine(version), Math.min(45000, Math.max(10000, message.length * 180)));
   }
 
   async function speak(message) {
@@ -133,7 +155,10 @@
     speechStartedAt = performance.now();
     speechBoundaryIndex = -1;
     stopVoice();
-    if (voiceMode === 'off') { speakingUntil = 0; return; }
+    if (voiceMode === 'off') { speakingUntil = 0; return true; }
+    speechActive = true;
+    speechCompletion = new Promise((resolve) => { settleSpeech = resolve; });
+    updateTourControls();
     speakingUntil = voiceMode === 'natural' && naturalVoiceAvailable ? 0
       : speechStartedAt + Math.min(15000, Math.max(1800, message.length * 65));
     if (voiceMode === 'natural' && naturalVoiceAvailable) {
@@ -156,13 +181,14 @@
           speechStartedAt = performance.now();
           speakingUntil = speechStartedAt + (Number.isFinite(audio.duration) ? audio.duration * 1000 : Math.max(1800, message.length * 65));
         };
-        audio.onended = audio.onerror = () => { if (version === speechVersion) { speakingUntil = 0; speechAudio = null; naturalAlignment = null; } };
+        audio.onended = audio.onerror = () => { if (version === speechVersion) { speechAudio = null; naturalAlignment = null; finishSpokenLine(version); } };
         await audio.play();
         return;
       } catch { if (version !== speechVersion) return; naturalAlignment = null; speechAudio = null; voicePending = false; }
     }
     speakingUntil = performance.now() + Math.min(15000, Math.max(1800, message.length * 65));
     browserSpeak(message, version);
+    return speechCompletion;
   }
 
   function speechMouthFrame(now) {
@@ -224,11 +250,8 @@
       return;
     }
     if (tourIndex >= 0 && /\b(next|continue|forward)\b/i.test(question)) {
-      if (tourIndex === destinations.length - 1) {
-        bubble('visitor', question);
-        endTour();
-        bubble('nova', `That is the tour of ${site.title}! Ask me about any section whenever you like.`);
-      } else visitTour(tourIndex + 1, question);
+      if (tourIndex === destinations.length - 1) finishTour(question);
+      else visitTour(tourIndex + 1, question);
       return;
     }
     if (tourIndex >= 0 && /\b(back|previous)\b/i.test(question)) {
@@ -270,13 +293,14 @@
     tourControls.hidden = !active;
     if (!active) return;
     tourProgress.textContent = `${tourIndex + 1} / ${destinations.length} · ${destinations[tourIndex].label}`;
-    tourPrevious.disabled = pending || tourIndex === 0;
-    tourNext.disabled = pending;
+    tourPrevious.disabled = pending || speechActive || tourQueued || tourIndex === 0;
+    tourNext.disabled = pending || speechActive || tourQueued;
     tourNext.textContent = tourIndex === destinations.length - 1 ? 'Finish ✓' : 'Next →';
   }
 
   function endTour() {
     if (pending) clearPending();
+    stopVoice();
     tourIndex = -1;
     updateTourControls();
     post('clearHighlight');
@@ -284,11 +308,43 @@
 
   function visitTour(index, requestedText = null) {
     if (pending || index < 0 || index >= destinations.length) return;
+    if (tourIndex >= 0 && speechActive) {
+      if (tourQueued) return;
+      tourQueued = true;
+      const previousIndex = tourIndex;
+      updateTourControls();
+      speechCompletion.then((completed) => {
+        tourQueued = false;
+        if (completed && tourIndex === previousIndex) visitTour(index, requestedText);
+        updateTourControls();
+      });
+      return;
+    }
     tourIndex = index;
     const item = destinations[index];
     bubble('visitor', requestedText || `Show me ${item.label}`);
     status.textContent = 'Finding section…';
     post('navigate', { key: item.key, requestId: beginPending() });
+  }
+
+  function finishTour(requestedText = null) {
+    if (tourIndex < 0 || tourQueued) return;
+    if (requestedText) bubble('visitor', requestedText);
+    if (speechActive) {
+      tourQueued = true;
+      const previousIndex = tourIndex;
+      updateTourControls();
+      speechCompletion.then((completed) => {
+        tourQueued = false;
+        if (completed && tourIndex === previousIndex) finishTour();
+        updateTourControls();
+      });
+      return;
+    }
+    endTour();
+    const farewell = `That is the tour of ${site.title}! Ask me about any section whenever you like.`;
+    bubble('nova', farewell);
+    speak(farewell);
   }
 
   startTour.addEventListener('click', () => {
@@ -297,10 +353,8 @@
   });
   tourPrevious.addEventListener('click', () => visitTour(tourIndex - 1));
   tourNext.addEventListener('click', () => {
-    if (tourIndex === destinations.length - 1) {
-      endTour();
-      bubble('nova', `That is the tour of ${site.title}! Ask me about any section whenever you like.`);
-    } else visitTour(tourIndex + 1);
+    if (tourIndex === destinations.length - 1) finishTour();
+    else visitTour(tourIndex + 1);
   });
   tourExit.addEventListener('click', endTour);
   reactionToggle.addEventListener('click', () => {
@@ -434,7 +488,7 @@
   function animate(now) {
     if (now > nextBlink) { blinkUntil = now + 150; nextBlink = now + 2800 + Math.random() * 2800; }
     if (gesture && now - gesture.started > gesture.duration) gesture = null;
-    const talking = now < speakingUntil;
+    const talking = speechActive;
     if (!reducedMotion && !gesture && !talking && !pending && now > nextIdleGesture) {
       startGesture(Math.random() < 0.55 ? 'nod' : 'think', 1500);
     }

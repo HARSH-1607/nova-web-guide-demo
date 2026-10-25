@@ -353,6 +353,7 @@
   }
 
   function endGuide(returnToDock = true) {
+    cancelSpeech();
     if (state.guide) state.guide.cancelled = true;
     state.guide = null;
     skipGuideInline.hidden = true;
@@ -398,9 +399,13 @@
       guideHintText.textContent = description;
       guideHint.hidden = false;
       positionGuideHint();
-      speak(description, true);
+      const narration = speak(description, true);
       startGesture('point', true);
-      window.setTimeout(() => { if (state.guide === guide) endGuide(); }, Math.max(6000, description.length * 65));
+      narration.then((completed) => {
+        if (completed && state.guide === guide) window.setTimeout(() => {
+          if (state.guide === guide) endGuide();
+        }, 900);
+      });
     }, window.innerWidth < 700 && element.matches('.cinematic-scene') ? 'start' : 'center');
   }
 
@@ -435,22 +440,25 @@
     if (!step || !guide.awaiting || target.dataset.walkthroughTarget !== step.target) return false;
     guide.awaiting = false;
     clearGuideVisuals();
-    addChatBubble('assistant', step.done);
-    speak(step.done, true);
-    if (step.target === 'contact') startGesture('joy', true);
-    window.setTimeout(() => {
-      if (state.guide !== guide || guide.cancelled) return;
-      guide.index += 1;
-      if (guide.index < guide.steps.length) showGuideStep();
-      else if (guide.tour) {
-        endGuide();
-        document.body.classList.add('journey-complete');
-        window.dispatchEvent(new Event('nova:tour-complete'));
-        const finished = 'The tour is complete. Keep exploring any part of the website!';
-        addChatBubble('assistant', finished);
-        speak(finished, true);
-      } else endGuide();
-    }, 1800);
+    const priorLine = state.speech?.completion || Promise.resolve(true);
+    priorLine.then((heard) => {
+      if (!heard || state.guide !== guide || guide.cancelled) return;
+      addChatBubble('assistant', step.done);
+      if (step.target === 'contact') startGesture('joy', true);
+      speak(step.done, true).then((completed) => {
+        if (!completed || state.guide !== guide || guide.cancelled) return;
+        guide.index += 1;
+        if (guide.index < guide.steps.length) showGuideStep();
+        else if (guide.tour) {
+          endGuide();
+          document.body.classList.add('journey-complete');
+          window.dispatchEvent(new Event('nova:tour-complete'));
+          const finished = 'The tour is complete. Keep exploring any part of the website!';
+          addChatBubble('assistant', finished);
+          speak(finished, true);
+        } else endGuide();
+      });
+    });
     return true;
   }
 
@@ -848,8 +856,10 @@
 
   function finishSpeech(speech) {
     if (state.speech !== speech) return;
+    window.clearTimeout(speech.watchdog);
     if (speech.audioUrl) URL.revokeObjectURL(speech.audioUrl);
     state.speech = null;
+    speech.resolve?.(true);
     if (!state.gesture && !state.destination) setStatus('Ready to guide');
   }
 
@@ -860,6 +870,10 @@
     }
     const speech = state.speech;
     state.speech = null;
+    if (speech) {
+      window.clearTimeout(speech.watchdog);
+      speech.resolve?.(false);
+    }
     if (speech?.audio) {
       speech.audio.pause();
       speech.audio.src = '';
@@ -887,6 +901,7 @@
 
   function speakWithBrowser(message) {
     const speech = createSpeechState(message);
+    speech.completion = new Promise((resolve) => { speech.resolve = resolve; });
     state.speech = speech;
     setStatus('Speaking');
     if ('speechSynthesis' in window) {
@@ -902,9 +917,12 @@
       utterance.onend = () => finishSpeech(speech);
       utterance.onerror = () => finishSpeech(speech);
       window.speechSynthesis.speak(utterance);
+      speech.watchdog = window.setTimeout(() => finishSpeech(speech),
+        Math.min(45000, Math.max(10000, message.length * 180)));
     } else {
-      window.setTimeout(() => finishSpeech(speech), speech.estimatedDuration);
+      speech.watchdog = window.setTimeout(() => finishSpeech(speech), speech.estimatedDuration);
     }
+    return speech.completion;
   }
 
   async function speakWithNaturalVoice(message, voiceId) {
@@ -952,14 +970,14 @@
 
   function speak(text, keepMovement = false) {
     const message = String(text || '').trim();
-    if (!message) return;
+    if (!message) return Promise.resolve(true);
     cancelSpeech();
     if (!keepMovement) {
       state.destination = null;
       state.onArrival = null;
       state.gesture = null;
     }
-    speakWithBrowser(message);
+    return speakWithBrowser(message);
   }
 
   function gestureFrame(gesture, now) {

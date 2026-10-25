@@ -110,12 +110,24 @@ async function main() {
       const endTip=[position.getX(tip),position.getY(tip),position.getZ(tip)];
       avatar.sync({speechFrame:7},3016,.016);
       const mouth=scene.getObjectByName('Drok_talk_mouth_control');
+      const mouthWidth=mouth?.scale.x||0;
+      const mouthHeight=mouth?.scale.y||0;
+      const eye=scene.getObjectByName('Drok_L_eye_blink');
+      const openEye=eye.scale.y;
+      for(let time=3032;time<=3130;time+=16)avatar.sync({blink:true},time,.016);
+      const closedEye=eye.scale.y;
+      for(let time=3146;time<=3600;time+=16)avatar.sync({},time,.016);
+      const recoveredEye=eye.scale.y;
       return {spikeName:spike.name,rootDrift:Math.hypot(...endRoot.map((value,i)=>value-startRoot[i])),
-        tipTravel:Math.hypot(...endTip.map((value,i)=>value-startTip[i])),mouthWidth:mouth?.scale.x||0};
+        tipTravel:Math.hypot(...endTip.map((value,i)=>value-startTip[i])),mouthWidth,
+        mouthHeight,openEye,closedEye,recoveredEye};
     })()`);
     assert.ok(spikeFlow.tipTravel > 0.005, `Spike tip did not flow: ${JSON.stringify(spikeFlow)}`);
     assert.ok(spikeFlow.rootDrift < 0.001, `Spike root should stay anchored: ${JSON.stringify(spikeFlow)}`);
     assert.ok(spikeFlow.mouthWidth > 0.1, `Speaking did not drive the mouth: ${JSON.stringify(spikeFlow)}`);
+    assert.ok(spikeFlow.mouthHeight > 0.1, `Speech did not open the mouth vertically: ${JSON.stringify(spikeFlow)}`);
+    assert.ok(spikeFlow.closedEye < spikeFlow.openEye * 0.7, `Blink did not close the eye: ${JSON.stringify(spikeFlow)}`);
+    assert.ok(spikeFlow.recoveredEye > spikeFlow.closedEye * 1.5, `Eye did not reopen: ${JSON.stringify(spikeFlow)}`);
     assert.equal(await evaluate('document.querySelector("iframe").contentWindow.performance.getEntriesByType("resource").some((entry) => /RobotExpressive|robot-avatar/.test(entry.name))'), false);
     await evaluate('window.dispatchEvent(new PointerEvent("pointermove",{clientX:60,clientY:100}))');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.gazeSource === "host"', 'Host cursor gaze');
@@ -221,6 +233,19 @@ async function main() {
     assert.ok(await evaluate('(()=>{const d=document.querySelector("#rootTest").contentDocument;const p=d.querySelector(".control-panel").getBoundingClientRect();const f=d.querySelector("#speechForm").getBoundingClientRect();return f.bottom<=p.bottom&&f.top>=p.top})()'), 'Starter composer remains visible');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-avatar-gesture=nod]").click()');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#avatarActor").dataset.animation === "nod"', 'Starter page nod');
+    await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;win.speechSynthesis.cancel();win.__spoken=[];win.speechSynthesis.speak=(utterance)=>{win.__spoken.push(utterance);utterance.onstart?.()};win.speechSynthesis.cancel=()=>{};const doc=win.document;doc.querySelector("#speechText").value="show me the site";doc.querySelector("#speechForm").requestSubmit()})()');
+    await waitFor('document.querySelector("#rootTest").contentWindow.__spoken.some((utterance)=>utterance.text.includes("Let me show you speech motion"))', 'First tour instruction speaks');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-walkthrough-target=features]").click()');
+    await sleep(1900);
+    assert.equal(await evaluate('document.querySelector("#rootTest").contentWindow.__spoken.length'), 1, 'Early click must not interrupt the instruction');
+    await evaluate('document.querySelector("#rootTest").contentWindow.__spoken[0].onend()');
+    await waitFor('document.querySelector("#rootTest").contentWindow.__spoken.length === 2', 'Step acknowledgement begins after instruction');
+    assert.ok(await evaluate('document.querySelector("#rootTest").contentWindow.__spoken[1].text.includes("approximate mouth motion")'));
+    await sleep(1900);
+    assert.equal(await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("Here is the pricing section")'), false, 'Next stop must wait for the whole acknowledgement');
+    await evaluate('document.querySelector("#rootTest").contentWindow.__spoken[1].onend()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("Here is the pricing section")', 'Tour advances after speech completion');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#skipGuide").click()');
     if (process.env.CAPTURE_STARTER === '1') {
       await evaluate('document.querySelector("#rootTest").style.cssText="position:fixed;inset:0;width:100vw;height:100vh;border:0;z-index:2147483647"');
       await sleep(300);

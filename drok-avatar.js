@@ -87,12 +87,19 @@ export async function loadDrokAvatar(scene) {
   const mouthControl = findRigControl('Drok talk mouth control');
   const smileControl = findRigControl('Drok smile control');
   const smirkControl = findRigControl('Drok smirk control');
+  const eyes = ['L', 'R'].map((side) => ({
+    blink: findRigControl(`Drok ${side} eye blink`),
+    brow: findRigControl(`Drok ${side} eyebrow pose`)
+  }));
   const mouthShapes = [
     [0.06, 0.06], [0.94, 1.1], [1.12, 0.6], [0.7, 0.55],
     [0.67, 1.08], [0.52, 0.82], [0.08, 0.08]
   ];
   let mouthWidth = 0;
   let mouthHeight = 0;
+  let smileBlend = 1;
+  let blinkBlend = 0;
+  let browBlend = 0;
   function swaySpikes(now, delta) {
     if (reducedMotion) return;
     const seconds = now / 1000;
@@ -135,11 +142,25 @@ export async function loadDrokAvatar(scene) {
         const mouthBlend = 1 - Math.exp(-delta * 14);
         mouthWidth = THREE.MathUtils.lerp(mouthWidth, target[0], mouthBlend);
         mouthHeight = THREE.MathUtils.lerp(mouthHeight, target[1], mouthBlend);
-        mouthControl.scale.set(mouthWidth, 1, mouthHeight);
-        const expression = THREE.MathUtils.clamp(1 - Math.max(mouthWidth, mouthHeight), 0, 1);
-        if (smileControl) smileControl.scale.multiplyScalar(expression);
-        if (smirkControl) smirkControl.scale.multiplyScalar(expression);
+        // The exported face is Y-up: X shapes width, Y shapes the vowel opening.
+        mouthControl.scale.set(mouthWidth, mouthHeight, 1);
       }
+
+      const open = Math.max(mouthWidth, mouthHeight);
+      const smileTarget = talking ? THREE.MathUtils.clamp(1 - open * 0.57, 0.3, 1) : 1;
+      smileBlend = THREE.MathUtils.lerp(smileBlend, smileTarget, 1 - Math.exp(-delta * 10));
+      if (smileControl) smileControl.scale.multiplyScalar(smileBlend);
+      if (smirkControl) smirkControl.scale.multiplyScalar(smileBlend);
+
+      blinkBlend = THREE.MathUtils.lerp(blinkBlend, pose.blink ? 1 : 0, 1 - Math.exp(-delta * 32));
+      const browTarget = gesture === 'think' ? -0.065
+        : ['joy', 'happy', 'wave', 'dance'].includes(gesture) ? 0.055
+          : talking ? 0.018 : 0;
+      browBlend = THREE.MathUtils.lerp(browBlend, browTarget, 1 - Math.exp(-delta * 8));
+      eyes.forEach(({ blink, brow }, index) => {
+        if (blink) blink.scale.y *= 1 - blinkBlend * 0.88;
+        if (brow) brow.rotation.z += (index === 0 ? -1 : 1) * browBlend;
+      });
 
       const elapsed = gesture ? Math.max(0, (now - pose.gesture.started) / 1000) : 0;
       const gazeX = pose.gaze?.x || 0;
