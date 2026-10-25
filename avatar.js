@@ -50,9 +50,11 @@
   let selectedVoice = null;
   let conversation = [];
   let chatRequestInFlight = false;
+  let chatRequestController = null;
   let onlineAvailable = false;
   let localAvailable = false;
   let onlineModel = '';
+  let providersChecked = false;
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = 'high';
   const state = {
@@ -64,6 +66,15 @@
   };
 
   function setStatus(message) { status.textContent = message; }
+  function cancelChatRequest() {
+    if (!chatRequestController) return;
+    chatRequestController.abort();
+    chatRequestController = null;
+    chatRequestInFlight = false;
+    askButton.disabled = false;
+    askButton.textContent = 'Ask';
+    askButton.setAttribute('aria-label', 'Ask Nova');
+  }
   function revealSite() {
     if (!state.intro) return;
     state.intro = false;
@@ -178,6 +189,7 @@
       modelSelect.replaceChildren(new Option('Ollama unavailable', ''));
     }
     if (!onlineAvailable && localAvailable) aiProvider.value = 'local';
+    providersChecked = true;
     updateProviderNotice();
   }
 
@@ -336,6 +348,7 @@
   }
 
   function beginGuide(request) {
+    cancelChatRequest();
     endGuide(false);
     const steps = request === 'tour' ? ['features', 'pricing', 'contact'] : [request];
     state.guide = { steps, index: 0, cancelled: false, awaiting: false, tour: request === 'tour' };
@@ -344,6 +357,7 @@
   }
 
   function showLandmark(element) {
+    cancelChatRequest();
     endGuide(false);
     window.dispatchEvent(new CustomEvent('nova:guide-target', { detail: { element } }));
     if (element.matches('[data-integration-category]')) setIntegrationFilter(element.dataset.integrationCategory);
@@ -432,7 +446,16 @@
 
   async function askAI() {
     const message = speechInput.value.trim();
-    if (!message || chatRequestInFlight) return;
+    if (!message) {
+      if (chatRequestInFlight) {
+        cancelChatRequest();
+        state.gesture = null;
+        setStatus('Ready to guide');
+        addChatBubble('assistant', 'Stopped. What would you like to explore next?');
+      }
+      return;
+    }
+    if (chatRequestInFlight) cancelChatRequest();
     if (/^(stop|cancel|skip)(?: (?:the )?(?:tour|walkthrough))?[.!]?$/i.test(message)) {
       addChatBubble('user', message);
       speechInput.value = '';
@@ -489,24 +512,39 @@
     }
     const wasGuiding = Boolean(state.guide);
     endGuide(wasGuiding);
+    const useOnline = aiProvider.value === 'online';
+    if (providersChecked && !(useOnline ? onlineAvailable : localAvailable)) {
+      addChatBubble('user', message);
+      speechInput.value = '';
+      const help = 'AI chat is unavailable right now. I can still show you the site, pricing, features, contact, or a guided tour. Choose an available AI provider in settings to ask open questions.';
+      addChatBubble('assistant', help);
+      modelNotice.classList.add('error');
+      updateProviderNotice();
+      setStatus('Ready to guide');
+      startGesture('point', true);
+      return;
+    }
     chatRequestInFlight = true;
-    askButton.disabled = true;
-    askButton.textContent = '…';
+    const requestController = new AbortController();
+    chatRequestController = requestController;
+    askButton.textContent = 'Stop';
+    askButton.setAttribute('aria-label', 'Stop or replace response');
     addChatBubble('user', message);
     speechInput.value = '';
     startGesture('think', true);
     setStatus('Thinking…');
     modelNotice.classList.remove('error');
-    const useOnline = aiProvider.value === 'online';
     modelNotice.textContent = useOnline ? 'Nova is thinking online…' : 'Nova is thinking on your local model…';
     try {
       const response = await fetch(useOnline ? '/api/online/chat' : '/api/llm/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, model: modelSelect.value, history: conversation.slice(-8) }),
+        signal: requestController.signal,
         cache: 'no-store'
       });
       const result = await response.json();
+      if (chatRequestController !== requestController) return;
       if (!response.ok) throw new Error(result.error || 'The AI could not answer.');
       addChatBubble('assistant', result.reply);
       conversation.push({ role: 'user', content: message }, { role: 'assistant', content: result.reply });
@@ -515,6 +553,7 @@
       state.gesture = null;
       speak(result.reply, wasGuiding);
     } catch (error) {
+      if (requestController.signal.aborted || chatRequestController !== requestController) return;
       state.gesture = null;
       const detail = error.message || 'Could not contact the AI.';
       addChatBubble('assistant', `I could not answer: ${detail}`);
@@ -522,9 +561,7 @@
       modelNotice.textContent = detail;
       setStatus('AI unavailable');
     } finally {
-      chatRequestInFlight = false;
-      askButton.disabled = false;
-      askButton.textContent = 'Ask';
+      if (chatRequestController === requestController) cancelChatRequest();
     }
   }
   function actorSize() { return { width: actor.offsetWidth, height: actor.offsetHeight }; }
@@ -994,8 +1031,20 @@
 
   document.querySelectorAll('[data-walkthrough-target]').forEach((button) => {
     button.addEventListener('click', () => {
+      cancelChatRequest();
       if (completeGuideStep(button)) return;
-      addChatBubble('assistant', 'Ask me in chat to guide you here, and I will show you the next step.');
+      const action = button.dataset.walkthroughTarget;
+      const responses = {
+        features: { text: 'Let us try the vowel sounds together: ah, eh, ee, oh, oo. My mouth follows the text as I speak.', gesture: 'point' },
+        pricing: { text: 'These Starter, Growth, and Enterprise plans are examples for the prototype. There are no live prices yet.', gesture: 'point' },
+        contact: { text: 'Thanks for exploring with me! You can send a suggestion or bug report using the form below.', gesture: 'joy' }
+      };
+      const response = responses[action];
+      if (!response) return;
+      addChatBubble('assistant', response.text);
+      startGesture(response.gesture, true);
+      speak(response.text, true);
+      if (action === 'contact') document.querySelector('#contactForm [name="message"]')?.focus({ preventScroll: true });
     });
   });
   document.querySelectorAll('[data-workflow-step]').forEach((button) => {
@@ -1016,6 +1065,7 @@
   });
   document.querySelectorAll('[data-avatar-gesture]').forEach((button) => {
     button.addEventListener('click', () => {
+      cancelChatRequest();
       const type = button.dataset.avatarGesture;
       const reply = gestureResponses[type];
       if (!reply) return;

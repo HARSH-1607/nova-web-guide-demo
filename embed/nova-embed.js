@@ -14,6 +14,8 @@
   frame.src = new URL(`frame.html?channel=${encodeURIComponent(channel)}`, base).href;
   frame.style.cssText = 'position:fixed;right:8px;bottom:8px;border:0;background:transparent;z-index:2147483646;color-scheme:dark;';
   let compact = false;
+  let frameReady = false;
+  let queuedAsk = null;
   function sizeFrame() {
     frame.style.width = compact ? '68px' : innerWidth < 600 ? 'min(340px,calc(100vw - 16px))' : 'min(390px,100vw)';
     frame.style.height = compact ? '68px' : innerWidth < 600 ? 'min(470px,calc(100vh - 16px))' : 'min(560px,100vh)';
@@ -38,6 +40,7 @@
 
   let highlighted = null;
   let highlightTimer = 0;
+  let currentRequestId = 0;
   function clearHighlight() {
     if (!highlighted) return;
     highlighted.element.style.outline = highlighted.outline;
@@ -85,10 +88,16 @@
 
   function matchTarget(question, items) {
     const query = ` ${normalized(question)} `;
+    const commonAliases = {
+      home: ['start', 'top', 'homepage'],
+      features: ['feature', 'capabilities', 'what it does'],
+      pricing: ['price', 'prices', 'plan', 'plans', 'cost', 'how much'],
+      contact: ['email', 'message', 'get in touch', 'reach you']
+    };
     let best = null;
     let bestLength = 0;
     for (const item of items) {
-      for (const alias of [item.key, item.label, ...item.aliases]) {
+      for (const alias of [item.key, item.label, ...item.aliases, ...(commonAliases[item.key] || [])]) {
         const phrase = normalized(alias);
         if (phrase.length >= 3 && query.includes(` ${phrase} `) && phrase.length > bestLength) {
           best = item;
@@ -132,9 +141,17 @@
     if (/\b(jump|hop)\b/i.test(question)) return { text: 'Here we go!', gesture: 'jump' };
     if (/\b(think pose|look thoughtful|thinking animation)\b/i.test(question)) return { text: 'Let me think about that.', gesture: 'think' };
     if (typeof config.onQuestion === 'function') {
-      const custom = await config.onQuestion(question, items.map(({ key, label, description }) => ({ key, label, description })));
+      let timer;
+      const custom = await Promise.race([
+        Promise.resolve().then(() => config.onQuestion(question,
+          items.map(({ key, label, description }) => ({ key, label, description })))),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Question callback timed out')), 15000); })
+      ]).finally(() => clearTimeout(timer));
       if (typeof custom === 'string') return { text: custom.slice(0, 1000), gesture: 'point' };
-      if (custom && typeof custom.text === 'string') return { text: custom.text.slice(0, 1000), gesture: custom.gesture || 'point' };
+      if (custom && typeof custom.text === 'string') {
+        const destination = items.find((item) => item.key === custom.target);
+        return { text: custom.text.slice(0, 1000), gesture: custom.gesture || 'point', target: destination?.key, navigateTarget: destination?.key };
+      }
     }
     const names = items.slice(0, 3).map((item) => item.key).join(', ');
     return { text: names ? `I can show you ${names}. Ask me where to go!` : 'Add data-nova-guide to a section so I can guide visitors there.', gesture: 'point' };
@@ -143,16 +160,35 @@
   async function onMessage(event) {
     if (event.source !== frame.contentWindow || event.origin !== base.origin || event.data?.novaChannel !== channel) return;
     if (event.data.type === 'ready') {
+      frameReady = true;
       send('init', { siteTitle: document.title.slice(0, 100), targets: targets().map(({ key, label }) => ({ key, label })) });
+      if (queuedAsk) { send('hostAsk', { question: queuedAsk }); queuedAsk = null; }
     } else if (event.data.type === 'question') {
       const question = typeof event.data.question === 'string' ? event.data.question.trim().slice(0, 500) : '';
       if (!question) return;
-      try { send('reply', { ...await answer(question) }); }
-      catch (error) { console.warn('Nova embed response failed:', error); send('reply', { text: 'I could not answer that right now. Please try again.' }); }
+      const requestId = Number.isSafeInteger(event.data.requestId) ? event.data.requestId : 0;
+      currentRequestId = requestId;
+      try {
+        const result = await answer(question);
+        if (currentRequestId !== requestId) return;
+        if (result.navigateTarget) {
+          const destination = targets().find((item) => item.key === result.navigateTarget);
+          if (destination) navigateTo(destination);
+        }
+        send('reply', { text: result.text, gesture: result.gesture, target: result.target, requestId });
+      } catch (error) {
+        if (currentRequestId !== requestId) return;
+        console.warn('Nova embed response failed:', error);
+        send('reply', { text: 'I could not answer that right now. Try a section name, or use the tour controls.', requestId });
+      }
     } else if (event.data.type === 'navigate') {
       const key = typeof event.data.key === 'string' ? event.data.key : '';
+      const requestId = Number.isSafeInteger(event.data.requestId) ? event.data.requestId : 0;
+      currentRequestId = requestId;
       const item = targets().find((target) => target.key === key);
-      send('navigated', item ? navigateTo(item) : { text: 'That destination is no longer on this page.', gesture: 'wave' });
+      send('navigated', { ...(item ? navigateTo(item) : { text: 'That destination is no longer on this page.', gesture: 'wave' }), requestId });
+    } else if (event.data.type === 'cancel') {
+      if (event.data.requestId === currentRequestId) currentRequestId = 0;
     } else if (event.data.type === 'clearHighlight') {
       clearTimeout(highlightTimer);
       clearHighlight();
@@ -167,9 +203,24 @@
   window.addEventListener('pointermove', onPointerMove, { passive: true });
   window.addEventListener('blur', onBlur);
   (document.body || document.documentElement).append(frame);
+  function askFromHost(value) {
+    const question = typeof value === 'string' ? value.trim().slice(0, 500) : '';
+    if (!question) return false;
+    frame.hidden = false;
+    compact = false;
+    sizeFrame();
+    if (frameReady) send('hostAsk', { question });
+    else queuedAsk = question;
+    return true;
+  }
   window.NovaEmbed = {
     show() { frame.hidden = false; },
     hide() { frame.hidden = true; },
+    ask(question) { return askFromHost(question); },
+    navigate(key) {
+      const item = targets().find((target) => target.key === key);
+      return item ? askFromHost(`Show me ${item.key}`) : false;
+    },
     refreshTargets() { send('init', { siteTitle: document.title.slice(0, 100), targets: targets().map(({ key, label }) => ({ key, label })) }); },
     destroy() { clearTimeout(highlightTimer); clearHighlight(); cancelAnimationFrame(pointerFrame); window.removeEventListener('message', onMessage); window.removeEventListener('resize', sizeFrame); window.removeEventListener('pointermove', onPointerMove); window.removeEventListener('blur', onBlur); frame.remove(); delete window.NovaEmbed; }
   };

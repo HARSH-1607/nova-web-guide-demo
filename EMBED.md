@@ -15,7 +15,7 @@ Add this before the closing `</body>` tag on an HTML page:
 The script creates one fixed, transparent iframe in the lower-right corner. It scans sections with IDs automatically, and it also recognizes any element marked `data-nova-guide`. Its CSS and WebGL canvas stay inside the iframe, so they do not restyle your website. The avatar files are public static assets; the protected Aura demo page and paid AI API remain behind their existing authentication.
 
 Visitors can minimize the guide to a small floating button and reopen it. On narrow screens, the character and chat panel scale down to leave more room for the host page.
-The **Take a tour** button walks through up to 12 discovered destinations, one stop at a time. Visitors can go back, advance, or exit without losing access to the site. Pressing Escape minimizes the guide.
+The **Take a tour** button walks through up to 12 discovered destinations, one stop at a time. Visitors can also type “show me around,” “next,” “back,” or “stop tour.” They can go back, advance, or exit without losing access to the site. Pressing Escape minimizes the guide.
 The **Moves** menu lets visitors trigger Wave, Nod, Shake, Think, Bump, Jump, Dance, and Cheer. Clicking the character cycles through a few friendly reactions. Nova takes a thinking pose while awaiting a chat answer. The rig follows the pointer across the host page, not just inside the widget. Short idle glances and occasional nods make Nova feel less static; browsers requesting reduced motion skip those automatic gestures.
 
 Mark useful destinations with descriptions:
@@ -78,8 +78,15 @@ Give the widget an `onQuestion` callback that calls **your own backend**. Never 
 <script src="https://nova-web-guide-demo.onrender.com/embed/nova-embed.js"></script>
 ```
 
-The host backend is responsible for authentication, rate limiting, cost limits, and any AI provider key. The default embed sends only the page title and configured section names/descriptions to its iframe—not the full page content.
+The host backend is responsible for authentication, rate limiting, cost limits, and any AI provider key. The callback may return `{ text, target: 'pricing' }` to make Nova highlight a configured destination. The widget stops waiting after 15 seconds if the callback does not respond. The default embed sends only the page title and configured section names/descriptions to its iframe—not the full page content.
 
-The host page can call `window.NovaEmbed.show()`, `.hide()`, `.refreshTargets()` after dynamic navigation, or `.destroy()`.
+The host page can call `window.NovaEmbed.show()`, `.hide()`, `.refreshTargets()` after dynamic navigation, or `.destroy()`. Its own buttons can ask the guide to act:
 
-For a strict Content Security Policy, allow the widget origin in `script-src` and `frame-src`. If a production host forbids cross-site frames, self-host the same `Builds` assets and use that origin instead. This prototype's frame needs browser WebGL for the rigged model; if WebGL fails, it shows a simple fallback icon.
+```js
+window.NovaEmbed.navigate('pricing'); // Returns false if that key is not on the page.
+window.NovaEmbed.ask('How do I contact you?');
+```
+
+Both methods reopen a minimized guide. An `ask()` call made before the iframe finishes loading is queued and delivered when ready.
+
+For a strict Content Security Policy, allow the widget origin in `script-src` and `frame-src`. If a production host forbids cross-site frames, self-host the same `Builds` assets and use that origin instead. This prototype's frame needs browser WebGL for the animated model; if WebGL fails, it shows a still image of Drok.

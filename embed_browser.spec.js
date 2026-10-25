@@ -23,7 +23,7 @@ async function main() {
   const viewport = process.env.EMBED_VIEWPORT || '1280,800';
   const port = await freePort();
   const server = spawn(process.execPath, [path.join(__dirname, 'run_test_server.js')], {
-    env: { ...process.env, PORT: String(port), PUBLIC_DEMO: '', RENDER: '' }, stdio: 'ignore'
+    env: { ...process.env, PORT: String(port), PUBLIC_DEMO: '', RENDER: '', OPENAI_API_KEY: 'browser-test-key' }, stdio: 'ignore'
   });
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-embed-'));
   let chrome;
@@ -111,6 +111,29 @@ async function main() {
     await waitFor('document.body.dataset.lastNovaStop === "features"', 'Tour second stop');
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("#tourExit").click()');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#tourControls").hidden', 'Tour exit');
+    await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="show me around";doc.querySelector("#questionForm").requestSubmit()})()');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#tourProgress").textContent.includes("1 / 4")', 'Chat starts tour');
+    await waitFor('!document.querySelector("iframe").contentDocument.querySelector("#tourNext").disabled', 'Chat tour stop ready');
+    await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="next";doc.querySelector("#questionForm").requestSubmit()})()');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#tourProgress").textContent.includes("2 / 4")', 'Chat advances tour');
+    await waitFor('!document.querySelector("iframe").contentDocument.querySelector("#tourNext").disabled', 'Second chat tour stop ready');
+    await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="stop tour";doc.querySelector("#questionForm").requestSubmit()})()');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#tourControls").hidden', 'Chat ends tour');
+    await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="how much are the plans";doc.querySelector("#questionForm").requestSubmit()})()');
+    await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Pricing synonym navigation');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("sample plans")', 'Pricing answer');
+    await evaluate('window.NovaEmbedConfig.onQuestion=()=>new Promise((resolve)=>setTimeout(()=>resolve({text:"late answer that should be ignored",target:"home"}),300))');
+    await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="quantum pancakes";doc.querySelector("#questionForm").requestSubmit()})()');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#send").textContent === "×"', 'Pending question can be canceled');
+    await evaluate('document.querySelector("iframe").contentDocument.querySelector("#send").click()');
+    await sleep(450);
+    assert.equal(await evaluate('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("late answer that should be ignored")'), false);
+    assert.equal(await evaluate('document.body.dataset.lastNovaStop'), 'pricing');
+    await evaluate('window.NovaEmbedConfig.onQuestion=async()=>({text:"I found the contact section for you.",target:"contact"})');
+    await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="quantum pancakes";doc.querySelector("#questionForm").requestSubmit()})()');
+    await waitFor('document.body.dataset.lastNovaStop === "contact"', 'Custom callback target navigation');
+    await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("I found the contact section")', 'Custom callback reply');
+    await evaluate('delete window.NovaEmbedConfig.onQuestion');
     if (process.env.CAPTURE_EMBED === '1') {
       if (process.env.CAPTURE_MOVES === '1') await evaluate('document.querySelector("iframe").contentDocument.querySelector("#reactionToggle").click()');
       console.log('Widget layout:', await evaluate('(()=>{const p=document.querySelector("iframe").contentDocument.querySelector(".panel");return {height:p.clientHeight,scrollHeight:p.scrollHeight,maxHeight:getComputedStyle(p).maxHeight}})()'));
@@ -127,9 +150,32 @@ async function main() {
     await waitFor('document.querySelector("iframe").style.width === "68px"', 'Widget minimize');
     await evaluate('document.querySelector("iframe").contentDocument.querySelector("#restore").click()');
     await waitFor('document.querySelector("iframe").style.width !== "68px"', 'Widget restore');
+    assert.equal(await evaluate('window.NovaEmbed.navigate("missing-section")'), false);
+    await evaluate('document.querySelector("iframe").contentDocument.querySelector("#collapse").click()');
+    await waitFor('document.querySelector("iframe").style.width === "68px"', 'Widget minimized before host API');
+    assert.equal(await evaluate('window.NovaEmbed.navigate("features")'), true);
+    await waitFor('document.querySelector("iframe").style.width !== "68px" && !document.querySelector("iframe").contentDocument.body.classList.contains("compact")', 'Host API reopens widget');
+    await waitFor('document.body.dataset.lastNovaStop === "features"', 'Host API destination');
+    assert.equal(await evaluate('window.NovaEmbed.ask("show contact")'), true);
+    await waitFor('document.body.dataset.lastNovaStop === "contact"', 'Host API question');
+    await evaluate('document.querySelector("#hostPricingButton").click()');
+    await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Host page button integration');
     await evaluate('const rootTest=document.createElement("iframe");rootTest.id="rootTest";rootTest.src="/";document.body.append(rootTest)');
     await waitFor('document.querySelector("#rootTest")?.contentDocument?.querySelector("#avatarActor")?.dataset.model === "Drok"', 'Starter page model');
     assert.equal(await evaluate('getComputedStyle(document.querySelector("#rootTest").contentDocument.querySelector("#avatarCanvas")).display'), 'none');
+    await evaluate('(()=>{const doc=document.querySelector("#rootTest").contentDocument;doc.querySelector("#speechText").value="enter the website";doc.querySelector("#speechForm").requestSubmit()})()');
+    await waitFor('!document.querySelector("#rootTest").contentDocument.body.classList.contains("intro-active")', 'Starter site unlock');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-walkthrough-target=features]").click()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("vowel sounds together")', 'Independent feature action');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-walkthrough-target=pricing]").click()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("no live prices")', 'Independent pricing action');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-walkthrough-target=contact]").click()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.activeElement?.name === "message"', 'Independent contact action');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#modelNotice").textContent.includes("Online AI ready")', 'Online provider ready for cancel test');
+    await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;const original=win.fetch.bind(win);win.fetch=(resource,options)=>String(resource).includes("/api/online/chat")?new Promise((_,reject)=>options.signal.addEventListener("abort",()=>reject(new DOMException("Aborted","AbortError")),{once:true})):original(resource,options);const doc=win.document;doc.querySelector("#speechText").value="Tell me about elephants";doc.querySelector("#speechForm").requestSubmit()})()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#askButton").textContent === "Stop"', 'Starter AI request can be stopped');
+    await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#askButton").click()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("Stopped. What would you like")', 'Starter AI request stopped');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-avatar-gesture=nod]").click()');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#avatarActor").dataset.animation === "nod"', 'Starter page nod');
     if (process.env.CAPTURE_STARTER === '1') {

@@ -33,6 +33,8 @@
   let blinkUntil = 0;
   let pointer = null;
   let pending = false;
+  let requestCounter = 0;
+  let activeRequestId = 0;
   let destinations = [];
   let tourIndex = -1;
   let nextIdleGesture = performance.now() + 11000;
@@ -122,15 +124,66 @@
     return cue * 7 + Math.floor(now / 40) % 7;
   }
 
-  function ask(question) {
-    if (!question || pending) return;
+  function clearPending() {
+    const stoppedRequestId = activeRequestId;
+    pending = false;
+    activeRequestId = 0;
+    sendButton.disabled = false;
+    sendButton.textContent = '↗';
+    sendButton.setAttribute('aria-label', 'Send message');
+    updateTourControls();
+    if (stoppedRequestId) post('cancel', { requestId: stoppedRequestId });
+  }
+
+  function beginPending() {
     pending = true;
-    sendButton.disabled = true;
+    activeRequestId = ++requestCounter;
+    sendButton.textContent = '×';
+    sendButton.setAttribute('aria-label', 'Cancel or replace question');
+    updateTourControls();
+    return activeRequestId;
+  }
+
+  function ask(question) {
+    if (!question) {
+      if (pending) { clearPending(); status.textContent = 'Ready to guide'; bubble('nova', 'Stopped. Ask me something else whenever you like.'); }
+      return;
+    }
+    if (pending) clearPending();
     input.value = '';
+    if (/\b(stop|exit|end|cancel)\b.*\b(tour|walk.?through)\b/i.test(question) && tourIndex < 0) {
+      bubble('visitor', question);
+      bubble('nova', 'No tour is running. Ask me to show you around when you are ready.');
+      return;
+    }
+    if (tourIndex >= 0 && /\b(stop|exit|end|cancel)\b/i.test(question)) {
+      bubble('visitor', question);
+      endTour();
+      bubble('nova', 'Tour ended. You can still ask about any section.');
+      return;
+    }
+    if (tourIndex >= 0 && /\b(next|continue|forward)\b/i.test(question)) {
+      if (tourIndex === destinations.length - 1) {
+        bubble('visitor', question);
+        endTour();
+        bubble('nova', 'That is the tour! Ask me about any section whenever you like.');
+      } else visitTour(tourIndex + 1, question);
+      return;
+    }
+    if (tourIndex >= 0 && /\b(back|previous)\b/i.test(question)) {
+      if (tourIndex > 0) visitTour(tourIndex - 1, question);
+      else { bubble('visitor', question); bubble('nova', 'You are already at the first stop.'); }
+      return;
+    }
+    if (/\b(tour|walk.?through|show me around|show me the site)\b/i.test(question)) {
+      if (destinations.length) visitTour(0, question);
+      else { bubble('visitor', question); bubble('nova', 'There are no guide stops on this page yet.'); }
+      return;
+    }
     bubble('visitor', question);
     startGesture('think', 15000);
     status.textContent = 'Thinking…';
-    post('question', { question });
+    post('question', { question, requestId: beginPending() });
   }
 
   function updateTourControls() {
@@ -145,21 +198,19 @@
   }
 
   function endTour() {
+    if (pending) clearPending();
     tourIndex = -1;
     updateTourControls();
     post('clearHighlight');
   }
 
-  function visitTour(index) {
+  function visitTour(index, requestedText = null) {
     if (pending || index < 0 || index >= destinations.length) return;
     tourIndex = index;
     const item = destinations[index];
-    pending = true;
-    sendButton.disabled = true;
-    bubble('visitor', `Show me ${item.label}`);
+    bubble('visitor', requestedText || `Show me ${item.label}`);
     status.textContent = 'Finding section…';
-    updateTourControls();
-    post('navigate', { key: item.key });
+    post('navigate', { key: item.key, requestId: beginPending() });
   }
 
   startTour.addEventListener('click', () => {
@@ -183,6 +234,13 @@
   });
 
   form.addEventListener('submit', (event) => { event.preventDefault(); ask(input.value.trim()); });
+  sendButton.addEventListener('click', (event) => {
+    if (!pending || input.value.trim()) return;
+    event.preventDefault();
+    clearPending();
+    status.textContent = 'Ready to guide';
+    bubble('nova', 'Stopped. Ask me something else whenever you like.');
+  });
   soundToggle.addEventListener('click', () => {
     voiceEnabled = !voiceEnabled;
     soundToggle.textContent = voiceEnabled ? '♫' : '♪̸';
@@ -209,13 +267,18 @@
 
   window.addEventListener('message', (event) => {
     if (event.source !== parent || event.data?.novaChannel !== channel) return;
-    if (event.data.type === 'init') {
+    if (event.data.type === 'hostAsk') {
+      document.body.classList.remove('compact');
+      restore.hidden = true;
+      if (typeof event.data.question === 'string') ask(event.data.question.trim().slice(0, 500));
+    } else if (event.data.type === 'init') {
       const site = typeof event.data.siteTitle === 'string' ? event.data.siteTitle : 'this site';
       if (!messages.children.length) bubble('nova', `Hi! I'm Nova. I can help you explore ${site}.`);
       prompts.replaceChildren();
+      const currentKey = destinations[tourIndex]?.key;
       destinations = (Array.isArray(event.data.targets) ? event.data.targets : [])
         .filter((item) => typeof item?.key === 'string' && typeof item?.label === 'string').slice(0, 12);
-      if (tourIndex >= destinations.length) tourIndex = -1;
+      if (tourIndex >= 0) tourIndex = destinations.findIndex((item) => item.key === currentKey);
       updateTourControls();
       for (const item of destinations.slice(0, 4)) {
         if (typeof item?.key !== 'string') continue;
@@ -226,9 +289,8 @@
         prompts.append(button);
       }
     } else if (event.data.type === 'reply' || event.data.type === 'navigated') {
-      pending = false;
-      sendButton.disabled = false;
-      updateTourControls();
+      if (!pending || event.data.requestId !== activeRequestId) return;
+      clearPending();
       const reply = typeof event.data.text === 'string' ? event.data.text.slice(0, 1000) : 'I could not answer that.';
       bubble('nova', reply);
       status.textContent = 'Speaking…';
