@@ -15,6 +15,14 @@ export async function loadDrokAvatar(scene) {
   if (gltf.animations.length !== 1) throw new Error('Drok needs its keyed Blender timeline.');
 
   const model = gltf.scene;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const spikes = [];
+  model.traverse((object) => {
+    if (!object.isMesh || !/^Drok (?:organic thorn|crown thorn)/.test(object.name)) return;
+    object.geometry = object.geometry.clone();
+    const position = object.geometry.getAttribute('position');
+    spikes.push({ object, position, rest: Float32Array.from(position.array), phase: spikes.length * 0.83 });
+  });
   const bounds = new THREE.Box3().setFromObject(model);
   const size = bounds.getSize(new THREE.Vector3());
   if (!Number.isFinite(size.y) || size.y <= 0) throw new Error('Drok model has invalid bounds.');
@@ -51,7 +59,7 @@ export async function loadDrokAvatar(scene) {
     next.reset().setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
     next.clampWhenFinished = once;
     next.setEffectiveWeight(1).play();
-    if (activeAction) activeAction.crossFadeTo(next, 0.28, false);
+    if (activeAction) activeAction.crossFadeTo(next, 0.42, true);
     activeAction = next;
     activeState = name;
   }
@@ -66,6 +74,24 @@ export async function loadDrokAvatar(scene) {
   ];
   let mouthWidth = 0;
   let mouthHeight = 0;
+  function swaySpikes(now) {
+    if (reducedMotion) return;
+    for (const { object, position, rest, phase } of spikes) {
+      const sway = Math.sin(now * 0.00135 + phase) * 0.018;
+      for (let i = 0; i < position.count; i++) {
+        const at = i * 3;
+        const x = rest[at];
+        const y = rest[at + 1];
+        const z = rest[at + 2];
+        const radius = Math.hypot(x, y - 1.75, z);
+        const flex = Math.pow(THREE.MathUtils.clamp((radius - 0.55) / 0.55, 0, 1), 2);
+        const tangent = Math.hypot(x, y - 1.75) || 1;
+        position.setXYZ(i, x - (y - 1.75) / tangent * sway * flex, y + x / tangent * sway * flex, z);
+      }
+      position.needsUpdate = true;
+      object.geometry.computeVertexNormals();
+    }
+  }
   return {
     get activeAnimation() { return activeState; },
     sync(pose, now, delta) {
@@ -76,6 +102,7 @@ export async function loadDrokAvatar(scene) {
           : pose.walking ? 'listening' : talking ? 'talking' : 'idle';
       play(state);
       mixer.update(delta);
+      swaySpikes(now);
 
       // The cavity keeps its depth while the visible width and height follow
       // vowel cues. Damping hides abrupt text-boundary changes.

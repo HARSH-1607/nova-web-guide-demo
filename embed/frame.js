@@ -320,24 +320,18 @@
     bubble('nova', 'Stopped. Ask me something else whenever you like.');
   });
   function updateVoiceButton() {
-    soundToggle.textContent = voiceMode === 'natural' ? '✦' : voiceMode === 'browser' ? '♫' : '×';
-    const label = voiceMode === 'natural' ? 'Dork warm baritone' : voiceMode === 'browser' ? 'masculine browser voice' : 'off';
+    soundToggle.textContent = voiceMode === 'browser' ? '♫' : '×';
+    const label = voiceMode === 'browser' ? 'Google UK English Male when available' : 'off';
     soundToggle.title = `Voice: ${label}. Click to change`;
     soundToggle.setAttribute('aria-label', `Voice: ${label}. Click to change`);
   }
   soundToggle.addEventListener('click', () => {
-    voiceMode = naturalVoiceAvailable
-      ? voiceMode === 'natural' ? 'browser' : voiceMode === 'browser' ? 'off' : 'natural'
-      : voiceMode === 'browser' ? 'off' : 'browser';
+    voiceMode = voiceMode === 'browser' ? 'off' : 'browser';
     speechVersion++; speakingUntil = 0; stopVoice(); updateVoiceButton();
   });
   fetch('../api/embed/status').then((response) => response.ok ? response.json() : null).then((result) => {
     naturalVoiceAvailable = Boolean(result?.naturalVoice);
-    if (naturalVoiceAvailable && voiceMode !== 'off' && !localMode) voiceMode = 'natural';
-    voiceDisclosure.textContent = result?.voiceProvider === 'gemini'
-      ? 'Dork’s baritone is AI generated using Gemini’s free-tier voice quota.'
-      : naturalVoiceAvailable ? 'Dork’s natural voice is AI generated and uses provider credits.'
-        : 'Dork uses a masculine browser voice. Available voices depend on your device.';
+    voiceDisclosure.textContent = 'Dork speaks in your browser, preferring Google UK English Male when available.';
     updateVoiceButton();
   }).catch(() => updateVoiceButton());
   window.DorkLocalAI.availability().then((value) => { localAIButton.hidden = value === 'unavailable'; });

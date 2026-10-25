@@ -100,19 +100,14 @@
     if (!event.relatedTarget) state.pointer.active = false;
   });
   function updateVoiceNotice() {
-    const source = naturalVoiceProvider === 'gemini' ? 'Gemini free-tier voice quota'
-      : naturalVoiceProvider ? 'provider credits' : null;
-    voiceNotice.textContent = source
-      ? `Dork’s warm baritone uses ${source}. A masculine browser voice takes over if it is unavailable.`
-      : 'Dork uses a lower, masculine browser voice. Available voices depend on your device.';
+    voiceNotice.textContent = selectedVoice?.name === 'Google UK English Male'
+      ? 'Google UK English Male is ready. Speech starts in your browser without audio generation.'
+      : 'Dork uses the best available English male browser voice. Google UK English Male appears here when your browser provides it.';
   }
   function renderVoiceOptions() {
     const previous = voiceSelect.value;
-    const naturalGroup = document.createElement('optgroup');
-    naturalGroup.label = naturalVoiceProvider === 'gemini' ? 'Gemini voice · free-tier quota' : 'Natural AI voice · provider credits';
-    naturalGroup.append(new Option('Dork · warm baritone', 'natural:server'));
     const browserGroup = document.createElement('optgroup');
-    browserGroup.label = 'Browser voices · free';
+    browserGroup.label = 'Instant browser voices';
     if (availableVoices.length) {
       availableVoices.forEach((voice, index) => {
         browserGroup.append(new Option(`${voice.name} (${voice.lang})`, `browser:${index}`));
@@ -120,18 +115,8 @@
     } else {
       browserGroup.append(new Option('System default', 'browser:default'));
     }
-    const groups = naturalVoiceAvailable ? [naturalGroup, browserGroup] : [browserGroup];
-    if (elevenVoices.length) {
-      const elevenGroup = document.createElement('optgroup');
-      elevenGroup.label = 'ElevenLabs voices · uses credits';
-      elevenVoices.forEach((voice) => {
-        const detail = [voice.gender, voice.accent].filter(Boolean).join(' · ');
-        elevenGroup.append(new Option(`${voice.name}${detail ? ` (${detail})` : ''}`, `eleven:${voice.id}`));
-      });
-      groups.push(elevenGroup);
-    }
-    voiceSelect.replaceChildren(...groups);
-    voiceSelect.value = [...voiceSelect.options].some((option) => option.value === previous)
+    voiceSelect.replaceChildren(browserGroup);
+    voiceSelect.value = voiceChoiceTouched && [...voiceSelect.options].some((option) => option.value === previous)
       ? previous : availableVoices.length ? 'browser:0' : 'browser:default';
     const browserIndex = Number(voiceSelect.value.split(':')[1]);
     selectedVoice = voiceSelect.value.startsWith('browser:') ? availableVoices[browserIndex] || null : null;
@@ -143,6 +128,7 @@
       .filter((voice) => voice.lang.toLowerCase().startsWith('en'));
     availableVoices = window.DorkVoice.rank(voices);
     renderVoiceOptions();
+    updateVoiceNotice();
   }
 
   async function loadElevenVoices() {
@@ -200,7 +186,6 @@
       naturalVoiceAvailable = Boolean(result?.naturalVoice);
       naturalVoiceProvider = result?.voiceProvider || null;
       renderVoiceOptions();
-      if (naturalVoiceAvailable && !voiceChoiceTouched) voiceSelect.value = 'natural:server';
       updateVoiceNotice();
     } catch { naturalVoiceAvailable = false; naturalVoiceProvider = null; updateVoiceNotice(); }
     try {
@@ -964,20 +949,13 @@
   function speak(text, keepMovement = false) {
     const message = String(text || '').trim();
     if (!message) return;
-    const selection = voiceSelect.value;
     cancelSpeech();
     if (!keepMovement) {
       state.destination = null;
       state.onArrival = null;
       state.gesture = null;
     }
-    if (selection === 'natural:server') {
-      speakWithNaturalVoice(message, null);
-    } else if (selection.startsWith('eleven:')) {
-      speakWithNaturalVoice(message, selection.slice('eleven:'.length));
-    } else {
-      speakWithBrowser(message);
-    }
+    speakWithBrowser(message);
   }
 
   function gestureFrame(gesture, now) {
@@ -1167,7 +1145,6 @@
   requestAnimationFrame(animate);
   renderVoiceOptions();
   loadVoices();
-  loadElevenVoices();
   loadAIProviders();
   window.addEventListener('nova3dready', () => {
     state.ready = true;

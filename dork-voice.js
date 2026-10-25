@@ -9,9 +9,11 @@
     const name = String(voice?.name || '');
     const language = String(voice?.lang || '').toLowerCase();
     if (!language.startsWith('en')) return -Infinity;
-    return (masculineNames.test(name) ? 100 : 0)
+    return (/^google uk english male$/i.test(name.trim()) ? 1000 : 0)
+      + (masculineNames.test(name) ? 100 : 0)
       - (feminineNames.test(name) ? 100 : 0)
       + (/natural|neural|online/i.test(name) ? 10 : 0)
+      + (language === 'en-gb' ? 8 : 0)
       + (language === 'en-us' ? 4 : 0);
   }
 
@@ -22,9 +24,10 @@
 
   function apply(utterance, voice, tone = 'friendly') {
     if (voice) utterance.voice = voice;
-    utterance.lang = voice?.lang || 'en-US';
+    utterance.lang = voice?.lang || 'en-GB';
     utterance.rate = tone === 'professional' ? 0.9 : tone === 'playful' ? 0.98 : 0.94;
-    utterance.pitch = voice && masculineNames.test(voice.name) ? 0.92 : 0.8;
+    utterance.pitch = voice && /^google uk english male$/i.test(voice.name.trim())
+      ? 1 : voice && masculineNames.test(voice.name) ? 0.92 : 0.8;
     return utterance;
   }
 
