@@ -34,7 +34,7 @@ async function main() {
   });
   await new Promise((resolve) => mock.listen(mockPort, '127.0.0.1', resolve));
   const child = spawn(process.execPath, [path.join(__dirname, 'run_test_server.js')], {
-    env: { ...process.env, NODE_ENV: 'test', PORT: String(sitePort), PUBLIC_DEMO: 'true',
+    env: { ...process.env, NODE_ENV: 'test', PORT: String(sitePort), PUBLIC_DEMO: 'true', AI_CHAT_PROVIDER: 'openai',
       DEMO_PASSWORD: 'embed-api-test-password', EMBED_AI_ENABLED: 'true', OPENAI_API_KEY: 'test-key',
       ONLINE_REQUEST_LIMIT: '4', ELEVENLABS_API_KEY: '', EMBED_ELEVENLABS_VOICE_ID: '',
       OPENAI_TEST_API_URL: `http://127.0.0.1:${mockPort}/v1/responses`,

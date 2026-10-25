@@ -210,7 +210,7 @@
       <div class="model-row"><label for="aiProvider">Chat AI</label><select id="aiProvider" aria-label="Chat AI provider"><option value="device">On-device AI · no credits</option><option value="online">Online AI</option><option value="local">Local Ollama</option></select><button id="retryModels" type="button" aria-label="Retry AI connection" title="Retry connection">↻</button></div>
       <div id="localModelRow" class="model-row"><label for="modelSelect">Local model</label><select id="modelSelect" aria-label="Local AI model"><option value="">Checking Ollama…</option></select></div>
       <p id="modelNotice" class="model-notice" aria-live="polite">Checking AI connections…</p>
-      <p class="model-notice">On-device AI runs in supported desktop Chrome and may download a model once. Online AI uses provider credits.</p>
+      <p class="model-notice">On-device AI runs in supported desktop Chrome and may download a model once. Online AI uses the server's Gemini free-tier quota.</p>
       <div class="voice-row"><label for="voiceSelect">Voice</label><select id="voiceSelect" aria-label="Speaking voice"><option>Loading voices…</option></select></div>
       <p id="voiceNotice" class="voice-notice" aria-live="polite">The natural voice is AI generated and uses credits. Browser voices work offline.</p>
     </details>
