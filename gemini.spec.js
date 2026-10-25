@@ -14,6 +14,7 @@ async function listen(server) {
 async function main() {
   let upstreamStatus = 200;
   let lastRequest;
+  let planAnswer = { action: 'navigate', target: 'spot:pricing', gesture: null, reply: 'I found the plans.' };
   const model = 'gemini-3.5-flash-lite';
   const upstream = http.createServer(async (request, response) => {
     assert.equal(request.headers['x-goog-api-key'], 'test-gemini-key');
@@ -22,7 +23,9 @@ async function main() {
     assert.equal(request.url, `/v1beta/models/${model}:generateContent`);
     lastRequest = JSON.parse(body);
     response.writeHead(upstreamStatus, { 'Content-Type': 'application/json' });
-    const answer = lastRequest.generationConfig.responseMimeType
+    const answer = lastRequest.systemInstruction.parts[0].text.includes('website action planner')
+      ? JSON.stringify(planAnswer)
+      : lastRequest.generationConfig.responseMimeType
       ? JSON.stringify({ reply: 'I can show you the plans.', target: 'pricing' })
       : 'I can show you the plans.';
     response.end(upstreamStatus === 200
@@ -71,6 +74,18 @@ async function main() {
     assert.deepEqual(await privateChat.json(), { reply: 'I can show you the plans.', model });
     assert.equal(lastRequest.contents[0].role, 'model');
     assert.equal(lastRequest.contents[1].role, 'user');
+    const planBody = { message: 'Take me where you explain costs', history: [],
+      targets: [{ key: 'spot:pricing', mode: 'place', label: 'Pricing', description: 'Plans' },
+        { key: 'control:filter:support', mode: 'control', label: 'Support filter' }] };
+    const plan = await fetch(`${base}/api/online/plan`, { method: 'POST',
+      headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify(planBody) });
+    assert.equal(plan.status, 200);
+    assert.deepEqual(await plan.json(), planAnswer);
+    assert.ok(lastRequest.systemInstruction.parts[0].text.includes('spot:pricing'));
+    planAnswer = { action: 'activate', target: 'spot:pricing', gesture: null, reply: 'Clicked it.' };
+    const invalidPlan = await fetch(`${base}/api/online/plan`, { method: 'POST',
+      headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify(planBody) });
+    assert.deepEqual((await invalidPlan.json()).action, 'clarify', 'AI cannot click a place or invent a control');
     const speech = await fetch(`${base}/api/embed/speech`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: 'Welcome to the site.' }) });
     assert.equal(speech.status, 503);

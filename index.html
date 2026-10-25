@@ -63,9 +63,9 @@
       <h2 id="features-title">Every motion <em>means something.</em></h2>
       <p class="section-intro">Ask Dork to guide you here. The character will point out the next action and wait for you to try it.</p>
       <div class="feature-grid">
-        <article class="glass-card"><span class="card-number">01</span><h3>Speech motion</h3><p>Expression morphs follow the spoken text with an approximate mouth-open rhythm.</p><button class="text-button" data-walkthrough-target="features">Hear the vowels ↗</button></article>
-        <article class="glass-card"><span class="card-number">02</span><h3>Movement</h3><p>A rigged walk animation carries the guide to a new place on the page.</p></article>
-        <article class="glass-card"><span class="card-number">03</span><h3>Gestures</h3><p>Rigged waving, dancing, and joyful motions respond to each moment.</p></article>
+        <article class="glass-card" data-guide-spot="speech-motion" data-guide-aliases="mouth motion,lip sync,speech animation" data-guide-description="This card explains how Dork’s mouth follows approximate vowel cues while speaking."><span class="card-number">01</span><h3>Speech motion</h3><p>Expression morphs follow the spoken text with an approximate mouth-open rhythm.</p><button class="text-button" data-walkthrough-target="features">Hear the vowels ↗</button></article>
+        <article class="glass-card" data-guide-spot="movement" data-guide-aliases="walking,walk animation,movement card" data-guide-description="This card describes Dork’s rigged walking motion across the page."><span class="card-number">02</span><h3>Movement</h3><p>A rigged walk animation carries the guide to a new place on the page.</p></article>
+        <article class="glass-card" data-guide-spot="gestures" data-guide-aliases="gestures,animations,reactions" data-guide-description="This card introduces Dork’s waving, dancing, and expressive reactions."><span class="card-number">03</span><h3>Gestures</h3><p>Rigged waving, dancing, and joyful motions respond to each moment.</p></article>
       </div>
     </section>
 
@@ -110,8 +110,8 @@
       <h2 id="trust-title">Magic you can <em>understand.</em></h2>
       <div class="trust-grid">
         <article class="glass-card"><h3>Local answers</h3><p>On-device AI can run in supported desktop Chrome without provider credits. Ollama remains an option on a local server.</p></article>
-        <article class="glass-card"><h3>Visible guidance</h3><p>Dork highlights the next target and waits for your click. It does not silently activate buttons for you.</p></article>
-        <article class="glass-card"><h3>Voice options</h3><p>Dork speaks with a warm baritone using Gemini’s free-tier voice when available, with a browser voice as backup.</p></article>
+        <article class="glass-card"><h3>Visible guidance</h3><p>Dork moves to the right place and highlights it. When you explicitly ask him to open a control, he does it in view.</p></article>
+        <article class="glass-card"><h3>Voice guidance</h3><p>Turn on the microphone to speak naturally. Dork uses a browser voice for quick replies and remembers phrases you teach him on this device.</p></article>
       </div>
     </section>
 
@@ -119,9 +119,10 @@
       <span class="eyebrow">06 / The answers</span>
       <h2 id="faq-title">Questions are <em>part of the story.</em></h2>
       <div class="faq-list">
-        <details><summary>How do I start a guided tour?</summary><p>Choose “Take a tour” in Dork’s controls. Dork will visit each step and wait for your click.</p></details>
-        <details><summary>When can I explore the site?</summary><p>As soon as Dork opens the website, you can use its controls freely. The guided tour is optional.</p></details>
-        <details><summary>Can Dork go to a specific place?</summary><p>Yes. Choose a destination in his controls, use the scene arrows, or speak a place name when voice input is available.</p></details>
+        <details><summary>How do I start a guided tour?</summary><p>Turn on the microphone and say “show me the site.” Dork will visit each step and wait for your click.</p></details>
+        <details><summary>When can I explore the site?</summary><p>Ask Dork to open the website or start the tour. The tour is optional, and you can explore freely afterward.</p></details>
+        <details><summary>Can Dork go to a specific place?</summary><p>Yes. Ask naturally, such as “take me where I can leave feedback,” or point to something and say “show me that.”</p></details>
+        <details><summary>Can Dork learn my phrasing?</summary><p>Say “when I say home base, I mean workflow.” Dork remembers that shortcut in this browser. Say “forget my phrases” to clear it.</p></details>
         <details><summary>Are the pricing and integrations live?</summary><p>No. They are placeholders and concept cards for this prototype.</p></details>
         <details><summary>Does voice guidance need an API key?</summary><p>Guided destinations work without an API key. Open questions can use on-device AI in supported desktop Chrome or the configured online provider.</p></details>
       </div>
@@ -132,9 +133,9 @@
       <h2 id="pricing-title">Choose the scale <em>of your story.</em></h2>
       <p class="section-intro">Dork can teleport here and point out the next action. Pricing details are placeholders while we focus on the character interaction system.</p>
       <div class="pricing-grid">
-        <article class="glass-card"><h3>Starter</h3><p>For a focused proof of concept.</p><button class="text-button" data-walkthrough-target="pricing">Ask about plans ↗</button></article>
-        <article class="glass-card"><h3>Growth</h3><p>For a wider customer journey.</p></article>
-        <article class="glass-card"><h3>Enterprise</h3><p>For a tailored rollout.</p></article>
+        <article class="glass-card" data-guide-spot="starter-plan" data-guide-aliases="starter plan,starter tier" data-guide-description="The Starter plan is a placeholder for a focused proof of concept; no live price is listed."><h3>Starter</h3><p>For a focused proof of concept.</p><button class="text-button" data-walkthrough-target="pricing">Ask about plans ↗</button></article>
+        <article class="glass-card" data-guide-spot="growth-plan" data-guide-aliases="growth plan,growth tier" data-guide-description="The Growth plan is a placeholder for a wider customer journey; no live price is listed."><h3>Growth</h3><p>For a wider customer journey.</p></article>
+        <article class="glass-card" data-guide-spot="enterprise-plan" data-guide-aliases="enterprise plan,enterprise tier" data-guide-description="The Enterprise plan is a placeholder for a tailored rollout; no live price is listed."><h3>Enterprise</h3><p>For a tailored rollout.</p></article>
       </div>
     </section>
 

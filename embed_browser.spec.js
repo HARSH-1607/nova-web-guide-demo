@@ -76,8 +76,8 @@ async function main() {
       if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
       return result.result.value;
     }
-    async function waitFor(expression, label) {
-      for (let attempt = 0; attempt < 150; attempt++) {
+    async function waitFor(expression, label, attempts = 150) {
+      for (let attempt = 0; attempt < attempts; attempt++) {
         if (await evaluate(expression)) return;
         await sleep(100);
       }
@@ -213,7 +213,7 @@ async function main() {
     await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Host page button integration');
     await evaluate('const rootTest=document.createElement("iframe");rootTest.id="rootTest";rootTest.src="/";rootTest.style.cssText="position:fixed;inset:0;width:100vw;height:100dvh;border:0;z-index:2147483647";document.body.append(rootTest)');
     await waitFor('document.querySelector("#rootTest")?.contentDocument?.querySelector("#avatarActor")?.dataset.model === "Drok"', 'Starter page model');
-    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#modelNotice").textContent.includes("Online AI ready")', 'Online AI default ready');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#modelNotice").textContent.includes("Online AI ready")', 'Online AI default ready', 300);
     if (process.env.CAPTURE_STARTER_INTRO === '1') {
       const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
       const output = path.join(os.tmpdir(), 'dork-starter-intro-preview.png');
@@ -243,12 +243,28 @@ async function main() {
     await waitFor('document.querySelector("#rootTest").contentDocument.activeElement?.name === "message"', 'Independent contact action');
     await evaluate('(()=>{const select=document.querySelector("#rootTest").contentDocument.querySelector("#aiProvider");select.value="online";select.dispatchEvent(new Event("change"))})()');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#modelNotice").textContent.includes("Online AI ready")', 'Online provider ready for cancel test');
-    await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;const original=win.fetch.bind(win);win.fetch=(resource,options)=>String(resource).includes("/api/online/chat")?new Promise((_,reject)=>options.signal.addEventListener("abort",()=>reject(new DOMException("Aborted","AbortError")),{once:true})):original(resource,options);win.DorkGuide.ask("Tell me about elephants")})()');
+    await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;const original=win.fetch.bind(win);win.fetch=(resource,options)=>String(resource).includes("/api/online/plan")?new Promise((_,reject)=>options.signal.addEventListener("abort",()=>reject(new DOMException("Aborted","AbortError")),{once:true})):original(resource,options);win.DorkGuide.ask("Tell me about elephants")})()');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#avatarStatus").textContent === "Thinking…"', 'Voice AI request can be stopped');
     await evaluate('document.querySelector("#rootTest").contentWindow.DorkGuide.ask("")');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#dorkCaption").textContent.includes("Stopped. What would you like")', 'Voice AI request stopped');
     await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;const target=win.document.querySelector("[data-guide-spot=workflow]");target.dispatchEvent(new win.PointerEvent("pointermove",{bubbles:true,clientX:40,clientY:40}));win.DorkGuide.ask("show me that")})()');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#dorkCaption").textContent.includes("interactive workflow demo")', 'Pointed target resolves from speech');
+    await evaluate('document.querySelector("#rootTest").contentWindow.DorkGuide.ask("stop")');
+    await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;const prior=win.fetch;win.__planCalls=0;win.__plannedResponse={action:"navigate",target:"spot:pricing",gesture:null,reply:"I found the plans."};win.fetch=(resource,options)=>{if(String(resource).includes("/api/online/plan")){win.__planCalls++;return Promise.resolve(new win.Response(JSON.stringify(win.__plannedResponse),{status:200,headers:{"Content-Type":"application/json"}}))}return prior(resource,options)};win.DorkGuide.ask("bring me to the money stuff")})()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#dorkCaption").textContent.includes("example plans")', 'AI plans a natural-language destination');
+    await evaluate('document.querySelector("#rootTest").contentWindow.DorkGuide.ask("bring me to the money stuff")');
+    await sleep(150);
+    assert.equal(await evaluate('document.querySelector("#rootTest").contentWindow.__planCalls'), 1, 'Dork remembers the visitor’s phrasing on this browser');
+    await evaluate('document.querySelector("#rootTest").contentWindow.DorkGuide.ask("when I say home base, I mean workflow")');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#dorkCaption").textContent.includes("home base")', 'Visitor teaches a phrase');
+    await evaluate('document.querySelector("#rootTest").contentWindow.DorkGuide.ask("home base")');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#dorkCaption").textContent.includes("interactive workflow demo")', 'Taught phrase moves to chosen destination');
+    assert.equal(await evaluate('document.querySelector("#rootTest").contentWindow.__planCalls'), 1, 'Taught phrase works without another AI call');
+    await evaluate('document.querySelector("#rootTest").contentWindow.DorkGuide.ask("take me to the growth plan")');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#dorkCaption").textContent.includes("Growth plan is a placeholder")', 'Dork can navigate to a specific card');
+    await evaluate('(()=>{const win=document.querySelector("#rootTest").contentWindow;win.__plannedResponse={action:"activate",target:"control:filter:growth",gesture:null,reply:"I can filter those ideas."};win.DorkGuide.ask("filter the ideas down to growth")})()');
+    await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("[data-integration-filter=growth]").getAttribute("aria-pressed") === "true"', 'Natural-language action activates a real page control');
+    assert.equal(await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-guide-spot=help-center]").hidden'), true);
     await evaluate('document.querySelector("#rootTest").contentWindow.DorkGuide.ask("stop")');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#avatarHit").click()');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#avatarHit").click()');

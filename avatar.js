@@ -67,6 +67,15 @@
   let voiceRestartTimer = 0;
   let referencedTarget = null;
   let referencedAt = 0;
+  let lastCommandPhrase = '';
+  let lastTargetKey = null;
+  const phraseStoreKey = 'dork-site-phrases-v1';
+  let rememberedPhrases = new Map();
+  try {
+    const saved = JSON.parse(localStorage.getItem(phraseStoreKey) || '[]');
+    if (Array.isArray(saved)) rememberedPhrases = new Map(saved.slice(-40).filter((entry) =>
+      Array.isArray(entry) && typeof entry[0] === 'string' && entry[1] && typeof entry[1] === 'object'));
+  } catch { /* Private browsing can disable storage. */ }
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = 'high';
   const state = {
@@ -257,6 +266,8 @@
 
   function classifyGuideRequest(message) {
     if (/\b(tour|walk.?through|show me (the |this )?(site|website|around)|how (do i|to) use (this|the) (site|website))\b/i.test(message)) return 'tour';
+    if (!/\b(show|take|go|bring|move|navigate|find|where|visit|head|point|open|walk)\b/i.test(message)
+      && !/^(pricing|prices|plans|features|contact)[.!?]?$/i.test(message.trim())) return null;
     if (/\b(pric(?:e|es|ing)|cost|plans?)\b/i.test(message)) return 'pricing';
     if (/\b(feature|speech|lip.?sync|vowel)\b/i.test(message)) return 'features';
     if (/\b(contact|finish|last stop)\b/i.test(message)) return 'contact';
@@ -274,7 +285,7 @@
 
   function classifyActionRequest(message) {
     const patterns = [
-      ['wave', /\b(wave|say hi|hello)\b/i], ['dance', /\b(dance|dancing)\b/i],
+      ['wave', /\b(wave|say hi)\b|^hello(?: dork)?[!. ]*$/i], ['dance', /\b(dance|dancing)\b/i],
       ['joy', /\b(celebrate|joy|happy)\b/i], ['nod', /\b(nod|agree with me)\b/i],
       ['shake', /\b(shake your head|say no|disagree)\b/i],
       ['fistBump', /\b(fist.?bump|high.?five)\b/i], ['jump', /\b(jump|hop)\b/i],
@@ -318,9 +329,72 @@
     });
   }
 
+  function taskTargets() {
+    const targets = [...document.querySelectorAll('[data-guide-spot]')].map((element) => ({
+      key: `spot:${element.dataset.guideSpot}`, mode: 'place', element,
+      label: element.querySelector('h1,h2,h3')?.textContent?.trim() || element.dataset.guideSpot,
+      description: element.dataset.guideDescription || ''
+    }));
+    document.querySelectorAll('[data-workflow-step]').forEach((element) => targets.push({
+      key: `control:workflow:${element.dataset.workflowStep}`, mode: 'control', element,
+      label: `${element.dataset.workflowStep} workflow step`, description: element.textContent.trim()
+    }));
+    document.querySelectorAll('[data-integration-filter]').forEach((element) => targets.push({
+      key: `control:filter:${element.dataset.integrationFilter}`, mode: 'control', element,
+      label: `${element.dataset.integrationFilter} integration filter`, description: 'Filter the example integrations.'
+    }));
+    document.querySelectorAll('.faq-list summary').forEach((element, index) => targets.push({
+      key: `control:faq:${index}`, mode: 'control', element,
+      label: element.textContent.trim(), description: 'Open this FAQ answer.'
+    }));
+    document.querySelectorAll('[data-walkthrough-target]').forEach((element) => targets.push({
+      key: `control:try:${element.dataset.walkthroughTarget}`, mode: 'control', element,
+      label: element.textContent.trim(), description: `Try the ${element.dataset.walkthroughTarget} demonstration.`
+    }));
+    const feedback = document.querySelector('#contactForm [name="message"]');
+    if (feedback) targets.push({ key: 'control:feedback', mode: 'control', element: feedback,
+      label: 'feedback message field', description: 'Focus the suggestion or bug report form.' });
+    return targets;
+  }
+
+  function normalizePhrase(value) {
+    return String(value || '').normalize('NFKC').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  function rememberPhrase(phrase, task) {
+    const normalized = normalizePhrase(phrase);
+    if (normalized.length < 3 || normalized.length > 100 || /@|\b\d{4,}\b/.test(phrase)
+      || !['navigate', 'activate', 'gesture', 'tour'].includes(task.action)) return;
+    rememberedPhrases.delete(normalized);
+    rememberedPhrases.set(normalized, { action: task.action, target: task.target || null, gesture: task.gesture || null });
+    while (rememberedPhrases.size > 40) rememberedPhrases.delete(rememberedPhrases.keys().next().value);
+    try { localStorage.setItem(phraseStoreKey, JSON.stringify([...rememberedPhrases])); } catch { /* Storage is optional. */ }
+  }
+
+  function resolveNamedTarget(phrase) {
+    const normalized = normalizePhrase(phrase);
+    const candidates = taskTargets();
+    let best = null;
+    let score = 0;
+    for (const target of candidates) {
+      const aliases = target.mode === 'place'
+        ? [target.element.dataset.guideSpot, ...(target.element.dataset.guideAliases || '').split(','), target.label]
+        : [target.label];
+      for (const alias of aliases) {
+        const term = normalizePhrase(alias);
+        if (!term) continue;
+        const match = normalized === term ? 1000 + term.length
+          : (` ${normalized} `).includes(` ${term} `) ? term.length : 0;
+        if (match > score) { best = target; score = match; }
+      }
+    }
+    return best;
+  }
+
   function findLandmark(message) {
     const normalized = message.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    if (!/\b(go|take|navigate|move|show|find|where|tell|explain|about|what|logo|faq|workflow|integrations|trust|home)\b/.test(normalized)) return null;
+    if (!/\b(go|take|navigate|move|show|find|where|bring|visit|head|point|open)\b/.test(normalized)
+      && !/^(logo|faq|workflow|integrations|trust|home)$/.test(normalized)) return null;
     let best = null;
     let score = 0;
     document.querySelectorAll('[data-guide-spot]').forEach((element) => {
@@ -408,7 +482,7 @@
     showGuideStep();
   }
 
-  function showLandmark(element) {
+  function showLandmark(element, descriptionOverride = '') {
     cancelChatRequest();
     endGuide(false);
     window.dispatchEvent(new CustomEvent('nova:guide-target', { detail: { element } }));
@@ -417,9 +491,9 @@
     const guide = { cancelled: false, awaiting: false, targetElement: focus, landmark: true };
     state.guide = guide;
     skipGuideInline.hidden = false;
-    const description = element.dataset.guideDescription || (element.dataset.walkthroughTarget
+    const description = descriptionOverride || element.dataset.guideDescription || (element.dataset.walkthroughTarget
       ? `This is the ${element.textContent.trim()} button. You can click it to try this part of the site.`
-      : `Here is ${element.dataset.guideSpot}.`);
+      : `Here is ${element.getAttribute('aria-label') || element.textContent.trim() || element.dataset.guideSpot}.`);
     showDorkResponse(description);
     transitionToTarget(element, focus, () => {
       if (state.guide !== guide || guide.cancelled) return;
@@ -505,6 +579,73 @@
     guidePointerLine.setAttribute('y2', String(to.top + to.height * 0.5));
   }
 
+  function performTask(task, originalPhrase = '', learn = false) {
+    const target = taskTargets().find((item) => item.key === task.target);
+    const gesture = gestureResponses[task.gesture];
+    if (task.action === 'tour') {
+      revealSite();
+      beginGuide('tour');
+    } else if (task.action === 'gesture' && gesture) {
+      endGuide(false);
+      showDorkResponse(gesture);
+      startGesture(task.gesture, true);
+      speak(gesture, true);
+    } else if (task.action === 'navigate' && target) {
+      revealSite();
+      lastTargetKey = target.key;
+      showLandmark(target.element, target.description || `Here is ${target.label}.`);
+    } else if (task.action === 'activate' && target?.mode === 'control') {
+      revealSite();
+      endGuide(false);
+      lastTargetKey = target.key;
+      transitionToTarget(target.element, target.element, () => {
+        target.element.classList.add('guide-target-active');
+        window.setTimeout(() => target.element.classList.remove('guide-target-active'), 1800);
+        if (target.key === 'control:feedback') target.element.focus({ preventScroll: true });
+        else target.element.click();
+        if (target.key.startsWith('control:try:')) return;
+        const reply = `I opened ${target.label}.`;
+        showDorkResponse(reply);
+        startGesture('point', true);
+        speak(reply, true);
+      });
+    } else if (['answer', 'clarify'].includes(task.action)) {
+      const reply = task.reply || 'Tell me which part of the site you mean.';
+      showDorkResponse(reply);
+      speak(reply, true);
+    } else return false;
+    if (learn) rememberPhrase(originalPhrase, task);
+    return true;
+  }
+
+  function teachPhrase(message) {
+    if (/^(?:forget|clear|erase) (?:my |the )?(?:phrases|shortcuts|commands|memory)\b/i.test(message)) {
+      rememberedPhrases.clear();
+      try { localStorage.removeItem(phraseStoreKey); } catch { /* Storage is optional. */ }
+      const reply = 'I cleared the phrases you taught me on this browser.';
+      showDorkResponse(reply);
+      speak(reply, true);
+      return true;
+    }
+    const teaching = message.match(/^(?:remember(?: that)?\s+)?when i say\s+["“']?(.+?)["”']?\s*,?\s*(?:i mean|it means|take me to|show me|go to)\s+(.+?)[.!]?$/i);
+    const correction = message.match(/^(?:no|not that)[,;.! ]+(?:i meant|i mean|take me to|show me)\s+(.+?)[.!]?$/i);
+    if (!teaching && !correction) return false;
+    const target = resolveNamedTarget(teaching ? teaching[2] : correction[1]);
+    if (!target) {
+      const reply = 'I could not match that place on this page. Try naming a section or button.';
+      showDorkResponse(reply);
+      speak(reply, true);
+      return true;
+    }
+    const phrase = teaching ? teaching[1] : lastCommandPhrase;
+    if (phrase) rememberPhrase(phrase, { action: 'navigate', target: target.key });
+    lastTargetKey = target.key;
+    const reply = phrase ? `Got it. When you say “${phrase}”, I will go to ${target.label}.` : `Got it. I will go to ${target.label}.`;
+    showDorkResponse(reply);
+    speak(reply, true);
+    return true;
+  }
+
   async function askAI(rawMessage) {
     const message = String(rawMessage || '').trim();
     if (!message) {
@@ -523,6 +664,10 @@
       speak('Okay, I stopped the walkthrough.', true);
       return;
     }
+    if (teachPhrase(message)) return;
+    const remembered = rememberedPhrases.get(normalizePhrase(message));
+    lastCommandPhrase = message;
+    if (remembered && performTask(remembered)) return;
     if (/\b(enter|open|explore|browse)\b.*\b(site|website|page)\b/i.test(message)) {
       revealSite();
       const reply = 'Welcome in! Ask me to show any section, or say “show me around” for a tour.';
@@ -535,6 +680,12 @@
       showDorkResponse(reply);
       speak(reply, true);
       startGesture('point', true);
+      return;
+    }
+    const specificLandmark = findLandmark(message);
+    if (specificLandmark && !specificLandmark.matches('.cinematic-scene, .brand')) {
+      revealSite();
+      showLandmark(specificLandmark);
       return;
     }
     const guideRequest = classifyGuideRequest(message);
@@ -589,12 +740,27 @@
     modelNotice.textContent = provider === 'device' ? 'Dork is thinking on this device…' : useOnline ? 'Dork is thinking online…' : 'Dork is thinking on your local model…';
     try {
       let result;
-      if (provider === 'device') {
+      if (useOnline) {
+        const targets = taskTargets().map(({ key, mode, label, description }) => ({ key, mode, label, description }));
+        const response = await fetch('/api/online/plan', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, history: conversation.slice(-8), targets, recentTarget: lastTargetKey }),
+          signal: requestController.signal, cache: 'no-store'
+        });
+        const plan = await response.json();
+        if (!response.ok) throw new Error(plan.error || 'Dork could not understand that request.');
+        if (chatRequestController !== requestController) return;
+        conversation.push({ role: 'user', content: message }, { role: 'assistant', content: plan.reply });
+        conversation = conversation.slice(-8);
+        state.gesture = null;
+        if (!performTask(plan, message, true)) throw new Error('Dork could not match that action to this page.');
+        return;
+      } else if (provider === 'device') {
         const reply = await window.DorkLocalAI.answer(message, mainAiContext(), requestController.signal,
           (percent) => { if (chatRequestController === requestController) modelNotice.textContent = `Downloading on-device model… ${percent}%`; });
         result = { reply, model: 'On-device AI' };
       } else {
-        const response = await fetch(useOnline ? '/api/online/chat' : '/api/llm/chat', {
+        const response = await fetch('/api/llm/chat', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message, model: modelSelect.value, history: conversation.slice(-8) }),
           signal: requestController.signal, cache: 'no-store'
@@ -1162,7 +1328,7 @@
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (SpeechRecognition) {
     recognition = new SpeechRecognition();
-    recognition.lang = 'en-GB';
+    recognition.lang = (navigator.languages || [navigator.language]).find((language) => /^en(?:-|$)/i.test(language)) || 'en-GB';
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     listenButton.addEventListener('click', () => {
