@@ -46,7 +46,7 @@
   let queuedAsk = null;
   function sizeFrame() {
     frame.style.width = compact ? '68px' : innerWidth < 600 ? 'min(340px,calc(100vw - 16px))' : 'min(390px,100vw)';
-    frame.style.height = compact ? '68px' : innerWidth < 600 ? 'min(470px,calc(100vh - 16px))' : 'min(560px,100vh)';
+    frame.style.height = compact ? '68px' : innerWidth < 600 ? 'min(530px,calc(100dvh - 16px))' : 'min(640px,100dvh)';
   }
   sizeFrame();
   let pointerFrame = 0;

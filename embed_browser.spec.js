@@ -86,6 +86,36 @@ async function main() {
     await waitFor('document.querySelector("iframe")?.contentDocument?.querySelector("#messages")?.textContent.includes("Dork")', 'Widget greeting');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.model === "Drok"', 'Blender Drok model');
     assert.equal(await evaluate('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.renderer'), 'three');
+    const spikeFlow = await evaluate(`(async()=>{
+      const win=document.querySelector('iframe').contentWindow;
+      const [{loadDrokAvatar},THREE]=await Promise.all([
+        win.eval('import("../drok-avatar.js")'),win.eval('import("../vendor/three.module.js")')
+      ]);
+      const scene=new THREE.Scene();
+      const avatar=await loadDrokAvatar(scene);
+      let spike;
+      scene.traverse((object)=>{if(/crown.?thorn/i.test(object.name))spike=object});
+      if(!spike)return {names:scene.children.map((child)=>child.name)};
+      const position=spike.geometry.getAttribute('position');
+      let root=0,tip=0,near=Infinity,far=-Infinity;
+      for(let i=0;i<position.count;i++){
+        const radius=Math.hypot(position.getX(i),position.getY(i)-1.75,position.getZ(i));
+        if(radius<near){near=radius;root=i}
+        if(radius>far){far=radius;tip=i}
+      }
+      const startRoot=[position.getX(root),position.getY(root),position.getZ(root)];
+      const startTip=[position.getX(tip),position.getY(tip),position.getZ(tip)];
+      for(let time=1000;time<=3000;time+=16)avatar.sync({},time,.016);
+      const endRoot=[position.getX(root),position.getY(root),position.getZ(root)];
+      const endTip=[position.getX(tip),position.getY(tip),position.getZ(tip)];
+      avatar.sync({speechFrame:7},3016,.016);
+      const mouth=scene.getObjectByName('Drok_talk_mouth_control');
+      return {spikeName:spike.name,rootDrift:Math.hypot(...endRoot.map((value,i)=>value-startRoot[i])),
+        tipTravel:Math.hypot(...endTip.map((value,i)=>value-startTip[i])),mouthWidth:mouth?.scale.x||0};
+    })()`);
+    assert.ok(spikeFlow.tipTravel > 0.005, `Spike tip did not flow: ${JSON.stringify(spikeFlow)}`);
+    assert.ok(spikeFlow.rootDrift < 0.001, `Spike root should stay anchored: ${JSON.stringify(spikeFlow)}`);
+    assert.ok(spikeFlow.mouthWidth > 0.1, `Speaking did not drive the mouth: ${JSON.stringify(spikeFlow)}`);
     assert.equal(await evaluate('document.querySelector("iframe").contentWindow.performance.getEntriesByType("resource").some((entry) => /RobotExpressive|robot-avatar/.test(entry.name))'), false);
     await evaluate('window.dispatchEvent(new PointerEvent("pointermove",{clientX:60,clientY:100}))');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#avatarActor").dataset.gazeSource === "host"', 'Host cursor gaze');
@@ -141,6 +171,7 @@ async function main() {
     await evaluate('(()=>{const doc=document.querySelector("iframe").contentDocument;doc.querySelector("#question").value="quantum pancakes";doc.querySelector("#questionForm").requestSubmit()})()');
     await waitFor('document.body.dataset.lastNovaStop === "contact"', 'Custom callback target navigation');
     await waitFor('document.querySelector("iframe").contentDocument.querySelector("#messages").textContent.includes("I found the contact section")', 'Custom callback reply');
+    assert.ok(await evaluate('(()=>{const d=document.querySelector("iframe").contentDocument;const p=d.querySelector(".panel").getBoundingClientRect();const f=d.querySelector("#questionForm").getBoundingClientRect();return f.bottom<=p.bottom&&f.top>=p.top})()'), 'Widget composer remains visible');
     await evaluate('delete window.DorkEmbedConfig.onQuestion');
     if (process.env.CAPTURE_EMBED === '1') {
       if (process.env.CAPTURE_MOVES === '1') await evaluate('document.querySelector("iframe").contentDocument.querySelector("#reactionToggle").click()');
@@ -187,6 +218,7 @@ async function main() {
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#askButton").textContent === "Stop"', 'Starter AI request can be stopped');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("#askButton").click()');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#chatHistory").textContent.includes("Stopped. What would you like")', 'Starter AI request stopped');
+    assert.ok(await evaluate('(()=>{const d=document.querySelector("#rootTest").contentDocument;const p=d.querySelector(".control-panel").getBoundingClientRect();const f=d.querySelector("#speechForm").getBoundingClientRect();return f.bottom<=p.bottom&&f.top>=p.top})()'), 'Starter composer remains visible');
     await evaluate('document.querySelector("#rootTest").contentDocument.querySelector("[data-avatar-gesture=nod]").click()');
     await waitFor('document.querySelector("#rootTest").contentDocument.querySelector("#avatarActor").dataset.animation === "nod"', 'Starter page nod');
     if (process.env.CAPTURE_STARTER === '1') {

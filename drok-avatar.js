@@ -18,10 +18,28 @@ export async function loadDrokAvatar(scene) {
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const spikes = [];
   model.traverse((object) => {
-    if (!object.isMesh || !/^Drok (?:organic thorn|crown thorn)/.test(object.name)) return;
+    if (!object.isMesh || !/^Drok[_ ](?:organic[_ ]thorn|crown[_ ]thorn)/.test(object.name)) return;
     object.geometry = object.geometry.clone();
     const position = object.geometry.getAttribute('position');
-    spikes.push({ object, position, rest: Float32Array.from(position.array), phase: spikes.length * 0.83 });
+    const rest = Float32Array.from(position.array);
+    const radii = [];
+    let rootRadius = Infinity;
+    let tipRadius = -Infinity;
+    let tip = 0;
+    for (let i = 0; i < position.count; i++) {
+      const at = i * 3;
+      const radius = Math.hypot(rest[at], rest[at + 1] - 1.75, rest[at + 2]);
+      radii.push(radius);
+      rootRadius = Math.min(rootRadius, radius);
+      if (radius > tipRadius) { tipRadius = radius; tip = at; }
+    }
+    const flex = Float32Array.from(radii, (radius) => {
+      const along = THREE.MathUtils.clamp((radius - rootRadius) / Math.max(0.001, tipRadius - rootRadius), 0, 1);
+      return along * along * (3 - 2 * along);
+    });
+    const phase = Math.atan2(rest[tip + 1] - 1.75, rest[tip]);
+    object.frustumCulled = false;
+    spikes.push({ object, position, rest, flex, phase, displacement: 0 });
   });
   const bounds = new THREE.Box3().setFromObject(model);
   const size = bounds.getSize(new THREE.Vector3());
@@ -65,28 +83,33 @@ export async function loadDrokAvatar(scene) {
   }
   play('idle');
 
-  const mouthControl = model.getObjectByName('Drok talk mouth control');
-  const smileControl = model.getObjectByName('Drok smile control');
-  const smirkControl = model.getObjectByName('Drok smirk control');
+  const findRigControl = (name) => model.getObjectByName(name.replaceAll(' ', '_')) || model.getObjectByName(name);
+  const mouthControl = findRigControl('Drok talk mouth control');
+  const smileControl = findRigControl('Drok smile control');
+  const smirkControl = findRigControl('Drok smirk control');
   const mouthShapes = [
     [0.06, 0.06], [0.94, 1.1], [1.12, 0.6], [0.7, 0.55],
     [0.67, 1.08], [0.52, 0.82], [0.08, 0.08]
   ];
   let mouthWidth = 0;
   let mouthHeight = 0;
-  function swaySpikes(now) {
+  function swaySpikes(now, delta) {
     if (reducedMotion) return;
-    for (const { object, position, rest, phase } of spikes) {
-      const sway = Math.sin(now * 0.00135 + phase) * 0.018;
+    const seconds = now / 1000;
+    for (const spike of spikes) {
+      const { object, position, rest, flex, phase } = spike;
+      const target = Math.sin(seconds * 1.15 + phase * 1.3) * 0.052
+        + Math.sin(seconds * 0.56 + phase * 0.7) * 0.018;
+      spike.displacement = THREE.MathUtils.lerp(spike.displacement, target, 1 - Math.exp(-delta * 7));
       for (let i = 0; i < position.count; i++) {
         const at = i * 3;
         const x = rest[at];
         const y = rest[at + 1];
         const z = rest[at + 2];
-        const radius = Math.hypot(x, y - 1.75, z);
-        const flex = Math.pow(THREE.MathUtils.clamp((radius - 0.55) / 0.55, 0, 1), 2);
         const tangent = Math.hypot(x, y - 1.75) || 1;
-        position.setXYZ(i, x - (y - 1.75) / tangent * sway * flex, y + x / tangent * sway * flex, z);
+        const bend = spike.displacement * flex[i];
+        position.setXYZ(i, x - (y - 1.75) / tangent * bend, y + x / tangent * bend,
+          z + 0.16 * bend);
       }
       position.needsUpdate = true;
       object.geometry.computeVertexNormals();
@@ -102,7 +125,7 @@ export async function loadDrokAvatar(scene) {
           : pose.walking ? 'listening' : talking ? 'talking' : 'idle';
       play(state);
       mixer.update(delta);
-      swaySpikes(now);
+      swaySpikes(now, delta);
 
       // The cavity keeps its depth while the visible width and height follow
       // vowel cues. Damping hides abrupt text-boundary changes.

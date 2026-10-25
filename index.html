@@ -176,6 +176,7 @@
   <svg id="guidePointer" class="guide-pointer" aria-hidden="true" hidden><defs><marker id="guideArrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="none" stroke="currentColor" stroke-width="2"/></marker></defs><line id="guidePointerLine" x1="0" y1="0" x2="0" y2="0" marker-end="url(#guideArrow)"/></svg>
 
   <aside class="control-panel" aria-label="Character controls">
+    <div class="panel-content">
     <div class="control-head"><span class="status-light"></span><div><strong>Meet Dork</strong><small id="avatarStatus" aria-live="polite">Loading character…</small></div></div>
     <div class="scene-navigation" aria-label="Navigate with Dork">
       <span id="sceneNavLabel">01 / The arrival</span>
@@ -203,10 +204,6 @@
       </div>
     </details>
     <div id="chatHistory" class="chat-history" role="log" aria-label="Conversation with Dork" aria-live="polite"><p class="chat-empty">Try “show me the site” or ask about a section.</p></div>
-    <form id="speechForm" class="speech-form">
-      <label for="speechText">Ask Dork</label>
-      <div class="speech-row"><input id="speechText" maxlength="240" placeholder="Show me the site…" autocomplete="off"><button id="askButton" class="button primary" type="submit" aria-label="Ask Dork">Ask</button></div>
-    </form>
     <details class="guide-settings"><summary>Model &amp; voice settings</summary>
       <div class="model-row"><label for="aiProvider">Chat AI</label><select id="aiProvider" aria-label="Chat AI provider"><option value="online" selected>Online AI · Gemini</option><option value="device">On-device AI · no credits</option><option value="local">Local Ollama</option></select><button id="retryModels" type="button" aria-label="Retry AI connection" title="Retry connection">↻</button></div>
       <div id="localModelRow" class="model-row"><label for="modelSelect">Local model</label><select id="modelSelect" aria-label="Local AI model"><option value="">Checking Ollama…</option></select></div>
@@ -215,6 +212,11 @@
       <div class="voice-row"><label for="voiceSelect">Voice</label><select id="voiceSelect" aria-label="Speaking voice"><option>Loading voices…</option></select></div>
       <p id="voiceNotice" class="voice-notice" aria-live="polite">Dork speaks instantly with Google UK English Male when it is available in your browser.</p>
     </details>
+    </div>
+    <form id="speechForm" class="speech-form">
+      <label for="speechText">Ask Dork</label>
+      <div class="speech-row"><input id="speechText" maxlength="240" placeholder="Show me the site…" autocomplete="off"><button id="askButton" class="button primary" type="submit" aria-label="Ask Dork">Ask</button></div>
+    </form>
   </aside>
 
   <footer class="site-footer" inert>Character motion prototype · Choose on-device, online, or local Ollama chat.</footer>

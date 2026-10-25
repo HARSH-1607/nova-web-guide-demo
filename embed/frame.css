@@ -13,3 +13,14 @@
 @media(max-width:360px){.actor{right:calc((100% - 156px)/2);bottom:250px;width:156px;height:208px}.panel{max-height:260px}.messages{max-height:55px}}
 @media(max-height:480px){.actor{height:42%;width:39%;right:30.5%;bottom:55%}.panel{max-height:55%}.messages{max-height:42px}.reaction-menu{bottom:255px}.reaction-choices{max-height:150px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important}}
+
+/* A fixed composer and one message scroller keep replies readable. */
+.panel{display:flex;flex-direction:column;height:clamp(275px,62%,370px);max-height:calc(100% - 16px);overflow:hidden}
+.panel-heading,.voice-disclosure,.tour-start-row,.tour-controls,.prompts,.question-form,.local-ai{flex:none}
+.voice-disclosure{display:none}
+.messages{flex:1;min-height:72px;max-height:none;overflow-y:auto;overscroll-behavior:contain}
+.question-form{padding-top:7px;border-top:1px solid rgba(142,234,214,.16)}
+.actor{bottom:calc(62% - 40px)}
+.reaction-menu{bottom:calc(62% + 5px)}
+@media(max-width:360px){.panel{height:clamp(250px,58%,310px)}.actor{bottom:calc(58% - 12px)}.reaction-menu{bottom:calc(58% + 5px)}}
+@media(max-height:480px){.panel{height:clamp(220px,54%,280px);max-height:calc(100% - 16px)}.messages{min-height:44px}.actor{bottom:calc(54% - 15px)}.reaction-menu{bottom:calc(54% + 5px)}}

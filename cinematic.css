@@ -65,3 +65,13 @@ body.journey-complete .scene-hud{display:none!important}
 body:not(.intro-active) .cinematic-scene:not(.scene-visible)>.contact-layout{opacity:.35;transform:translateY(20px)}.cinematic-scene>.contact-layout{transition:opacity .8s ease,transform .8s cubic-bezier(.2,.8,.2,1)}
 @media(max-width:850px){.contact-layout{grid-template-columns:1fr;gap:1.5rem}.contact-copy{padding-top:0}.contact-copy h3{max-width:16ch}}@media(max-width:540px){.contact-fields-two{grid-template-columns:1fr}.contact-form-actions{align-items:flex-start;flex-direction:column}}
 @media(prefers-reduced-motion:reduce){.stage-ring,.stage-emblem,.welcome-orbit,.welcome-stage::after{animation:none}.cinematic-scene>*{transition:none!important}.glass-card{transition:none}}
+
+/* Keep the chat composer visible while the conversation and settings scroll. */
+.control-panel{display:flex;flex-direction:column;max-height:min(560px,calc(100dvh - 24px));overflow:hidden}
+.panel-content{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(142,234,214,.35) transparent}
+.chat-history{max-height:none;overflow:visible;min-height:64px}
+.speech-form{flex:none;padding-top:.7rem;margin-top:.45rem;border-top:1px solid rgba(170,229,232,.16);background:rgba(8,19,34,.94)}
+.intro-active .control-panel{max-height:min(400px,54dvh)}
+.intro-active .movement-lab{display:none}
+.intro-active .chat-history{max-height:none;min-height:56px}
+@media(max-width:600px){.control-panel{max-height:calc(100dvh - 16px)}.intro-active .control-panel{max-height:min(390px,55dvh)}}

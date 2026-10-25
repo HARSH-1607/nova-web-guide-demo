@@ -32,6 +32,7 @@
   const localModelRow = document.getElementById('localModelRow');
   const modelNotice = document.getElementById('modelNotice');
   const chatHistory = document.getElementById('chatHistory');
+  const panelContent = document.querySelector('.panel-content');
   const speechInput = document.getElementById('speechText');
   const askButton = document.getElementById('askButton');
   const guideHint = document.getElementById('guideHint');
@@ -219,7 +220,10 @@
     bubble.textContent = message;
     chatHistory.append(bubble);
     while (chatHistory.children.length > 20) chatHistory.firstElementChild.remove();
-    chatHistory.scrollTop = chatHistory.scrollHeight;
+    requestAnimationFrame(() => {
+      const overflow = bubble.getBoundingClientRect().bottom - panelContent.getBoundingClientRect().bottom + 8;
+      if (overflow > 0) panelContent.scrollTop += overflow;
+    });
   }
 
   const guideSteps = {
