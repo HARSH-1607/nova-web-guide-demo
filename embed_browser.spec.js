@@ -22,9 +22,16 @@ async function freePort() {
 async function main() {
   const viewport = process.env.EMBED_VIEWPORT || '1280,800';
   const port = await freePort();
+  let hostPort;
+  do { hostPort = await freePort(); } while (hostPort === port);
   const server = spawn(process.execPath, [path.join(__dirname, 'run_test_server.js')], {
     env: { ...process.env, PORT: String(port), PUBLIC_DEMO: '', RENDER: '', OPENAI_API_KEY: 'browser-test-key' }, stdio: 'ignore'
   });
+  const independentHost = http.createServer((_request, response) => {
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(`<!doctype html><title>Independent host</title><main><section id="pricing" data-nova-guide="pricing" data-nova-description="Plans on an independent origin"><h1>Pricing</h1></section></main><script>window.NovaEmbedConfig={onNavigate(key){document.body.dataset.lastNovaStop=key}}</script><script src="http://127.0.0.1:${port}/embed/nova-embed.js"></script>`);
+  });
+  await new Promise((resolve) => independentHost.listen(hostPort, '127.0.0.1', resolve));
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-embed-'));
   let chrome;
   let socket;
@@ -187,10 +194,18 @@ async function main() {
       console.log(`Starter screenshot: ${output}`);
     }
     console.log('Browser test passed: both pages load the rigged model, reactions, cursor gaze, chat, tour, and widget controls.');
+    await send('Page.navigate', { url: `http://127.0.0.1:${hostPort}/` });
+    await sleep(500);
+    await waitFor('window.NovaEmbed && document.querySelector("iframe")', 'Independent host installation');
+    assert.equal(await evaluate('new URL(document.querySelector("iframe").src).port'), String(port));
+    assert.equal(await evaluate('window.NovaEmbed.navigate("pricing")'), true);
+    await waitFor('document.body.dataset.lastNovaStop === "pricing"', 'Cross-origin host navigation');
+    console.log('Cross-origin install passed: independent host and Nova iframe exchanged guide actions.');
   } finally {
     socket?.close();
     chrome?.kill();
     server.kill();
+    await new Promise((resolve) => independentHost.close(resolve));
   }
 }
 
